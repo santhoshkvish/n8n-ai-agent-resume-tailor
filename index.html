@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
@@ -707,14 +707,15 @@
             <div class="banner-designer-empty" id="bannerDesignerEmpty">Add images and text, then drag them anywhere in this space to build your letterhead.</div>
           </div>
           <div class="banner-action-row">
-            <button type="button" class="btn btn-gold" id="saveBannerBtn">Save banner &amp; use in resume</button>
+            <button type="button" class="btn btn-gold" id="useBannerBtn">Use in resume</button>
+            <button type="button" class="btn btn-ghost" id="downloadBannerBtn">Download banner (.png)</button>
             <span class="banner-status" id="bannerStatus"></span>
           </div>
           <div class="hint">
             Click an element to select it — drag to move, drag the bottom-right dot to resize, double-click text to edit it, use the × to delete.
             Select a text element to change its font, size, color, or weight — upload your company's own font file first if you want to use it.
-            "Save banner" flattens everything into one image, downloads it to your computer, and applies it to this resume.
-            Next time, skip straight to "Reuse a saved banner image" below instead of rebuilding it.
+            "Use in resume" flattens everything into one image and applies it to this resume without downloading anything.
+            "Download banner" saves that same flattened image to your computer so you can skip straight to "Reuse a saved banner image" next time instead of rebuilding it.
           </div>
           <div class="banner-reuse-row">
             <label for="bannerReuseInput" class="btn btn-ghost" style="display:inline-block;">Reuse a saved banner image</label>
@@ -1311,20 +1312,45 @@
     return canvas.toDataURL("image/png");
   }
 
-  document.getElementById("saveBannerBtn").addEventListener("click", async ()=>{
+  // Shared by both buttons below: flattens the current banner design into
+  // one image and applies it to the resume. Returns the data URL so the
+  // download button can reuse it without re-flattening.
+  async function applyBannerToResume(){
     if (!state.bannerElements.length){
       bannerStatus.textContent = "Add at least one image or text element first.";
       bannerStatus.style.color = "var(--warn)";
-      return;
+      return null;
     }
-    bannerStatus.textContent = "Saving…";
+    const dataUrl = await flattenBannerToImage();
+    state.bannerFinalImage = { dataUrl, aspectRatio: BANNER_DESIGNER_W / BANNER_DESIGNER_H };
+    return dataUrl;
+  }
+
+  document.getElementById("useBannerBtn").addEventListener("click", async ()=>{
+    bannerStatus.textContent = "Applying…";
     bannerStatus.style.color = "var(--text-on-paper-dim)";
     try{
-      const dataUrl = await flattenBannerToImage();
-      state.bannerFinalImage = { dataUrl, aspectRatio: BANNER_DESIGNER_W / BANNER_DESIGNER_H };
+      const dataUrl = await applyBannerToResume();
+      if (dataUrl === null) return; // empty-designer message already shown
+      bannerStatus.textContent = "Applied to this resume.";
+      bannerStatus.style.color = "var(--ok)";
+    } catch(err){
+      console.error("Banner flatten failed:", err);
+      bannerStatus.textContent = "Something went wrong applying the banner. Try again.";
+      bannerStatus.style.color = "var(--warn)";
+    }
+  });
 
-      // Trigger a local download so the user can reuse this exact banner
-      // next time without rebuilding it.
+  document.getElementById("downloadBannerBtn").addEventListener("click", async ()=>{
+    bannerStatus.textContent = "Preparing download…";
+    bannerStatus.style.color = "var(--text-on-paper-dim)";
+    try{
+      // Re-flatten from the current designer state so the download always
+      // matches what's on screen, then apply it too since you'd expect the
+      // banner you just downloaded to also be the one in use.
+      const dataUrl = await applyBannerToResume();
+      if (dataUrl === null) return;
+
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = "resume-header-banner.png";
@@ -1332,7 +1358,7 @@
       a.click();
       a.remove();
 
-      bannerStatus.textContent = "Saved — downloaded to your computer and applied to this resume.";
+      bannerStatus.textContent = "Downloaded and applied to this resume.";
       bannerStatus.style.color = "var(--ok)";
     } catch(err){
       console.error("Banner flatten failed:", err);
@@ -2067,10 +2093,19 @@
 
   async function generateDocx(){
     const data = collectResumeData();
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, ImageRun, AlignmentType } = docx;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, ImageRun, AlignmentType, SectionType } = docx;
 
     const accentHex = state.headerColor.replace("#","").toUpperCase();
     const docxFontName = FONT_OPTIONS[state.fontIndex].docxFont;
+
+    // Standard Letter page, in twips (1440 twips = 1 inch). Word's default
+    // section margin is 1440 twips on every side — that's what was insetting
+    // the banner even at "full width." docx.js can't bleed an image past a
+    // section's own margins, so a true edge-to-edge banner needs its own
+    // zero-margin section, followed by a continuous-break section that
+    // restores normal margins for the rest of the resume.
+    const PAGE_W_TWIPS = 12240, PAGE_H_TWIPS = 15840;
+    const PAGE_W_PX = 816; // 12240 twips at 96 DPI
 
     function sectionHeading(text){
       return new Paragraph({
@@ -2096,40 +2131,39 @@
       return "jpg";
     }
 
+    const hasBanner = data.mode === "consultancy" && !!data.bannerFinalImage;
+    const bannerSectionChildren = [];
     const children = [];
 
-    // ---- Consultancy header banner: one flattened image spanning the full
-    // page width, placed above the candidate's own header, with a rule beneath ----
-    if (data.mode === "consultancy" && data.bannerFinalImage){
-      // Word content width is roughly 6.5in = 9360 twips at default margins;
-      // pick a docx image width that reads well on the page and derive the
-      // height from the banner's own aspect ratio so it isn't distorted.
-      const DOCX_BANNER_W_PX = 620;
-      const bannerHpx = Math.round(DOCX_BANNER_W_PX / data.bannerFinalImage.aspectRatio);
+    if (hasBanner){
+      const ratio = (data.bannerFinalImage.aspectRatio && isFinite(data.bannerFinalImage.aspectRatio) && data.bannerFinalImage.aspectRatio > 0)
+        ? data.bannerFinalImage.aspectRatio : (700/140);
+      const bannerHpx = Math.round(PAGE_W_PX / ratio);
       const mimeMatch = data.bannerFinalImage.dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
       const bannerImgType = imageTypeFromMime(mimeMatch ? mimeMatch[1] : "image/png");
-      children.push(new Paragraph({
-        alignment: AlignmentType.CENTER,
+      bannerSectionChildren.push(new Paragraph({
+        spacing:{ after:0 },
         children:[ new ImageRun({
           data: dataUrlToUint8Array(data.bannerFinalImage.dataUrl),
-          transformation: { width: DOCX_BANNER_W_PX, height: bannerHpx },
+          transformation: { width: PAGE_W_PX, height: bannerHpx },
           type: bannerImgType
-        }) ],
-        spacing:{ after:80 }
-      }));
-      children.push(new Paragraph({
-        text: "",
-        spacing:{ after:120 },
-        border:{ bottom:{ style: BorderStyle.SINGLE, size:14, color:"10151F", space:6 } }
+        }) ]
       }));
     }
 
     // Name (bold, large), centered
+    if (hasBanner){
+      children.push(new Paragraph({
+        text: "",
+        spacing:{ after:100 },
+        border:{ bottom:{ style: BorderStyle.SINGLE, size:14, color:"10151F", space:6 } }
+      }));
+    }
     const displayName = data.name || (state.resumeFilename ? state.resumeFilename.replace(/\.pdf$/i,"") : "Resume");
     children.push(new Paragraph({
       alignment: AlignmentType.CENTER,
       children:[ new TextRun({ text: displayName, bold:true, size:44, color:"10151F" }) ],
-      spacing:{ after: data.title ? 20 : 60 }
+      spacing:{ before: hasBanner ? 120 : 0, after: data.title ? 20 : 60 }
     }));
 
     // Tagline (professional title), centered
@@ -2211,22 +2245,58 @@
       });
     }
 
+    // Two sections when there's a banner: a zero-margin section so the image
+    // bleeds edge-to-edge, then a continuous-break section (no page break)
+    // that restores normal 1" margins for the rest of the resume. One
+    // section as before when there's no banner to bleed.
+    const sections = hasBanner
+      ? [
+          {
+            properties:{ page:{ size:{ width: PAGE_W_TWIPS, height: PAGE_H_TWIPS }, margin:{ top:0, right:0, bottom:0, left:0 } } },
+            children: bannerSectionChildren
+          },
+          {
+            properties:{
+              type: SectionType.CONTINUOUS,
+              page:{ size:{ width: PAGE_W_TWIPS, height: PAGE_H_TWIPS }, margin:{ top:1440, right:1440, bottom:1440, left:1440 } }
+            },
+            children
+          }
+        ]
+      : [{ children }];
+
     const doc = new Document({
       styles: {
         default: {
           document: { run: { font: docxFontName } }
         }
       },
-      sections:[{ children }]
+      sections
     });
     const blob = await Packer.toBlob(doc);
     triggerDownload(blob, (state.resumeFilename||"resume").replace(/\.pdf$/i,"") + "-tailored.docx");
   }
 
-  document.getElementById("downloadDocxBtn").addEventListener("click", generateDocx);
-  document.getElementById("downloadPdfBtn").addEventListener("click", generatePdf);
-  document.getElementById("modalDownloadDocxBtn").addEventListener("click", generateDocx);
-  document.getElementById("modalDownloadPdfBtn").addEventListener("click", generatePdf);
+  async function withDownloadFeedback(btn, fn){
+    if (!btn) { await fn(); return; }
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    try {
+      await fn();
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Sorry, that download failed: " + (err && err.message ? err.message : String(err)) + "\n\nOpen your browser console (F12) for the full error.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  document.getElementById("downloadDocxBtn").addEventListener("click", (e)=> withDownloadFeedback(e.currentTarget, generateDocx));
+  document.getElementById("downloadPdfBtn").addEventListener("click", (e)=> withDownloadFeedback(e.currentTarget, generatePdf));
+  document.getElementById("modalDownloadDocxBtn").addEventListener("click", (e)=> withDownloadFeedback(e.currentTarget, generateDocx));
+  document.getElementById("modalDownloadPdfBtn").addEventListener("click", (e)=> withDownloadFeedback(e.currentTarget, generatePdf));
 
   // ---------- Save this application (emails a PDF copy + JD to the user) ----------
   const emailCopyBtn = document.getElementById("emailCopyBtn");
