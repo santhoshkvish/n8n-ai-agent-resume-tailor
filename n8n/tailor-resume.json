@@ -1,0 +1,219 @@
+{
+  "name": "Resume Tailoring Agent (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tailor-resume",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        0
+      ],
+      "id": "wh-tailor-trigger",
+      "name": "Webhook - Tailor Resume",
+      "webhookId": "REPLACE_ON_IMPORT_TAILOR"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const base64 = item.json.body?.resumeBase64 || item.json.resumeBase64;\n\n  if (!base64) {\n    throw new Error('No resumeBase64 field found in payload.');\n  }\n\n  const buffer = Buffer.from(base64, 'base64');\n  const fileName = item.json.body?.resumeFilename || 'resume.pdf';\n\n  const binaryData = await this.helpers.prepareBinaryData(\n    buffer,\n    fileName,\n    'application/pdf'\n  );\n\n  results.push({\n    json: item.json,\n    binary: { data: binaryData }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        0
+      ],
+      "id": "mbd-tailor",
+      "name": "Base64 -> Binary"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        0
+      ],
+      "id": "extract-tailor",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        16,
+        240
+      ],
+      "id": "gemini-tailor",
+      "name": "Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_WITH_YOUR_CRED_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<job_description>\n{{ $('Webhook - Tailor Resume').item.json.body.jdText }}\n</job_description>\n\n<resume>\n{{ $json.text }}\n</resume>",
+        "options": {
+          "systemMessage": "<role>\nYou are the Resume Tailoring Agent, a precise and strategic career optimization assistant, expert in ATS optimization and hiring practices.\n</role>\n\n<instructions>\n<goal>\nGenerate a fully rewritten, job-targeted resume from the candidate's current resume content and the target job description. The tailored resume must:\n1. Preserve and reframe as much of the candidate's original experience, skills, projects, and achievements as possible - never discard information unless entirely irrelevant.\n2. Align language, keywords, and emphasis with the job description to maximize ATS compatibility and recruiter relevance.\n3. Add complementary skills/experience only when they closely align with the candidate's existing background and are clearly demanded by the job description. Additions must be plausible extensions, never fabricated unrelated experience.\n</goal>\n\n<process>\n1. Extract required skills, preferred skills, key responsibilities, domain keywords, and cultural signals from the JD.\n2. Map the candidate's existing resume to each JD requirement; flag gaps and transferable experience.\n3. Rewrite bullet points to incorporate JD keywords naturally while preserving factual substance. Reorder to lead with most relevant experience. Strengthen quantifiable achievements.\n4. Fill strategic gaps with plausible, clearly-adjacent additions only.\n5. Final polish: consistent tense/tone, remove filler language (\"responsible for\" -> \"led\"), ensure ATS-critical keywords appear at least once.\n6. Compute a POST-TAILORING match percentage (0-100): how well this newly tailored resume now addresses the JD's required + preferred qualifications. Be honest and calibrated, not inflated.\n</process>\n\n<rules>\n- Accuracy over embellishment. Stretch is acceptable; fabrication is not.\n- Maintain the candidate's voice/tone unless clearly unprofessional.\n- Retain unique differentiators (projects, publications, niche skills) even if not explicitly in the JD.\n- Use standard resume section conventions.\n</rules>\n</instructions>\n\n<output_format>\nReturn ONLY valid JSON. No markdown code fences, no preamble, no explanation outside the JSON object. Match exactly this shape:\n\n{\n  \"name\": \"string (full name from the resume, exactly as written \u2014 leave empty string if not found, never invent one)\",\n  \"phone\": \"string (phone number exactly as written on the resume \u2014 leave empty string if not found, never fabricate)\",\n  \"email\": \"string (email address exactly as written on the resume \u2014 leave empty string if not found, never fabricate)\",\n  \"summary\": \"string\",\n  \"matchScore\": {\n    \"percentage\": 0,\n    \"rationale\": \"string, 1-2 sentences\"\n  },\n  \"skills\": [\"string\"],\n  \"experience\": [\n    { \"title\": \"string\", \"company\": \"string\", \"location\": \"string (city, state \u2014 leave empty string if unknown, never fabricate)\", \"dates\": \"string\", \"bullets\": [\"string\"] }\n  ],\n  \"education\": [\n    { \"degree\": \"string\", \"school\": \"string\", \"location\": \"string (city, state \u2014 leave empty string if unknown, never fabricate)\", \"dates\": \"string\" }\n  ],\n  \"tailoringNotes\": {\n    \"keywordsInjected\": [\"string\"],\n    \"sectionsReordered\": [\"string\"],\n    \"addedSkills\": [{ \"skill\": \"string\", \"justification\": \"string\" }],\n    \"remainingGaps\": [\"string\"]\n  }\n}\n</output_format>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        16,
+        0
+      ],
+      "id": "agent-tailor",
+      "name": "Resume Tailoring Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Defensive JSON parsing: Gemini occasionally wraps output in markdown fences\n// or adds stray text despite instructions. Strip and validate before responding.\nconst raw = $input.first().json.output ?? $input.first().json.text ?? '';\n\nlet cleaned = String(raw).trim();\ncleaned = cleaned.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```\\s*$/i, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (err) {\n  return [{\n    json: {\n      error: true,\n      message: 'Model output was not valid JSON',\n      rawOutput: cleaned\n    }\n  }];\n}\n\nconst requiredKeys = ['summary', 'matchScore', 'skills', 'experience', 'education', 'tailoringNotes'];\nconst missing = requiredKeys.filter(k => !(k in parsed));\nif (missing.length > 0) {\n  return [{\n    json: {\n      error: true,\n      message: `JSON parsed but missing keys: ${missing.join(', ')}`,\n      rawOutput: parsed\n    }\n  }];\n}\n\nif (parsed.matchScore && typeof parsed.matchScore.percentage === 'number') {\n  parsed.matchScore.percentage = Math.max(0, Math.min(100, Math.round(parsed.matchScore.percentage)));\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "code-validate-tailor",
+      "name": "Validate JSON Output"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        0
+      ],
+      "id": "respond-tailor",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Tailor Resume": {
+      "main": [
+        [
+          {
+            "node": "Base64 -> Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64 -> Binary": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Resume Tailoring Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resume Tailoring Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Tailoring Agent": {
+      "main": [
+        [
+          {
+            "node": "Validate JSON Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate JSON Output": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "replace-on-import"
+  },
+  "nodeGroups": [],
+  "id": "tailorResumeWorkflow01",
+  "tags": []
+}

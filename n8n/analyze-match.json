@@ -1,0 +1,219 @@
+{
+  "name": "Resume-JD Match Analyzer (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyze-match",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        0
+      ],
+      "id": "wh-analyze-trigger",
+      "name": "Webhook - Analyze Match",
+      "webhookId": "REPLACE_ON_IMPORT_ANALYZE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const base64 = item.json.body?.resumeBase64 || item.json.resumeBase64;\n\n  if (!base64) {\n    throw new Error('No resumeBase64 field found in payload.');\n  }\n\n  const buffer = Buffer.from(base64, 'base64');\n  const fileName = item.json.body?.resumeFilename || 'resume.pdf';\n\n  const binaryData = await this.helpers.prepareBinaryData(\n    buffer,\n    fileName,\n    'application/pdf'\n  );\n\n  results.push({\n    json: item.json,\n    binary: { data: binaryData }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        0
+      ],
+      "id": "mbd-analyze",
+      "name": "Base64 -> Binary"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        0
+      ],
+      "id": "extract-analyze",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        16,
+        240
+      ],
+      "id": "gemini-analyze",
+      "name": "Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_WITH_YOUR_CRED_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<job_description>\n{{ $('Webhook - Analyze Match').item.json.body.jdText }}\n</job_description>\n\n<resume>\n{{ $json.text }}\n</resume>",
+        "options": {
+          "systemMessage": "<role>\nYou are a resume-to-job-description match analyzer. You do NOT rewrite the resume. You only score alignment.\n</role>\n\n<instructions>\nCompare the resume against the job description and compute a match percentage (0-100) representing how well the resume, AS-IS, addresses the required and preferred qualifications in the job description.\n\nAlso extract:\n- matchedKeywords: important terms/skills from the JD that ARE present in the resume\n- missingKeywords: important terms/skills from the JD that are NOT present in the resume\n\nBe honest and calibrated - do not inflate the score. A generic resume with little overlap should score low (e.g. under 40). A strong, closely aligned resume should score high (e.g. 80+).\n</instructions>\n\n<output_format>\nReturn ONLY valid JSON. No markdown code fences, no preamble, no explanation outside the JSON object. Match exactly this shape:\n\n{\n  \"matchScore\": {\n    \"percentage\": 0,\n    \"rationale\": \"string, 1-2 sentences\",\n    \"matchedKeywords\": [\"string\"],\n    \"missingKeywords\": [\"string\"]\n  }\n}\n</output_format>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        16,
+        0
+      ],
+      "id": "agent-analyze",
+      "name": "Agent - Match Scorer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Defensive JSON parsing: Gemini occasionally wraps output in markdown fences\n// or adds stray text despite instructions. Strip and validate before responding.\nconst raw = $input.first().json.output ?? $input.first().json.text ?? '';\n\nlet cleaned = String(raw).trim();\ncleaned = cleaned.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```\\s*$/i, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (err) {\n  return [{\n    json: {\n      error: true,\n      message: 'Model output was not valid JSON',\n      rawOutput: cleaned\n    }\n  }];\n}\n\nif (!parsed.matchScore || typeof parsed.matchScore.percentage !== 'number') {\n  return [{\n    json: {\n      error: true,\n      message: 'JSON parsed but did not match expected schema',\n      rawOutput: parsed\n    }\n  }];\n}\n\n// Clamp percentage defensively\nparsed.matchScore.percentage = Math.max(0, Math.min(100, Math.round(parsed.matchScore.percentage)));\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "code-validate-analyze",
+      "name": "Validate JSON Output"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        0
+      ],
+      "id": "respond-analyze",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Analyze Match": {
+      "main": [
+        [
+          {
+            "node": "Base64 -> Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64 -> Binary": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Agent - Match Scorer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent - Match Scorer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent - Match Scorer": {
+      "main": [
+        [
+          {
+            "node": "Validate JSON Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate JSON Output": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "replace-on-import"
+  },
+  "nodeGroups": [],
+  "id": "analyzeMatchWorkflow01",
+  "tags": []
+}

@@ -1,0 +1,113 @@
+{
+  "name": "Email Resume + JD (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-resume",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-640, 0],
+      "id": "wh-email-trigger",
+      "name": "Webhook - Email Resume",
+      "webhookId": "REPLACE_ON_IMPORT_EMAIL"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst body = item.json.body;\n\nconst toEmail = body.toEmail;\nconst jdText = body.jdText;\nconst candidateName = body.candidateName || 'Your resume';\nconst pdfBase64 = body.pdfBase64;\nconst pdfFilename = body.pdfFilename || 'resume.pdf';\n\nif (!toEmail) throw new Error('No toEmail field found in payload.');\nif (!pdfBase64) throw new Error('No pdfBase64 field found in payload.');\n\nconst subject = `Application saved: ${candidateName} \\u2014 ${new Date().toISOString().slice(0,10)}`;\nconst textBody = `Here's a copy of the tailored resume you generated, along with the job description it was tailored for \\u2014 so you have a record of exactly what you submitted for this application.\\n\\n---\\nJOB DESCRIPTION\\n---\\n\\n${jdText}\\n\\n---\\n\\nSaved automatically by Resume Tailor.`;\n\nconst boundary = 'resumeTailorBoundary_' + Date.now();\n\n// RFC 2822 requires base64 body lines wrapped at 76 chars.\nfunction wrap76(b64) {\n  return b64.match(/.{1,76}/g).join('\\r\\n');\n}\n\nconst mimeMessage = [\n  `To: ${toEmail}`,\n  `Subject: ${subject}`,\n  'MIME-Version: 1.0',\n  `Content-Type: multipart/mixed; boundary=\"${boundary}\"`,\n  '',\n  `--${boundary}`,\n  'Content-Type: text/plain; charset=\"UTF-8\"',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  textBody,\n  '',\n  `--${boundary}`,\n  `Content-Type: application/pdf; name=\"${pdfFilename}\"`,\n  'Content-Transfer-Encoding: base64',\n  `Content-Disposition: attachment; filename=\"${pdfFilename}\"`,\n  '',\n  wrap76(pdfBase64),\n  '',\n  `--${boundary}--`\n].join('\\r\\n');\n\n// Gmail API requires base64url (RFC 4648 \\u00a75): + -> -, / -> _, no padding.\nconst encodedMessage = Buffer.from(mimeMessage, 'utf8')\n  .toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn [{ json: { raw: encodedMessage } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-416, 0],
+      "id": "code-build-mime",
+      "name": "Build MIME Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"raw\": $json.raw } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-192, 0],
+      "id": "http-gmail-send",
+      "name": "Send via Gmail API",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_GMAIL_OAUTH_CRED_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst body = item.json;\n\n// Gmail API returns { \"id\": \"...\", \"threadId\": \"...\" } on success.\nconst ok = !!(body && body.id);\n\nreturn [{\n  json: {\n    success: ok,\n    message: ok ? 'Email sent.' : (body && (body.error?.message || body.message)) || 'Gmail did not confirm the send.'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [32, 0],
+      "id": "code-build-response",
+      "name": "Build Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [240, 0],
+      "id": "respond-email",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Email Resume": {
+      "main": [[{ "node": "Build MIME Message", "type": "main", "index": 0 }]]
+    },
+    "Build MIME Message": {
+      "main": [[{ "node": "Send via Gmail API", "type": "main", "index": 0 }]]
+    },
+    "Send via Gmail API": {
+      "main": [[{ "node": "Build Response", "type": "main", "index": 0 }]]
+    },
+    "Build Response": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "replace-on-import"
+  },
+  "nodeGroups": [],
+  "id": "emailResumeWorkflow01",
+  "tags": []
+}

@@ -1,0 +1,2322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resume Tailor — Match, Tailor, Download</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0B2523;
+    --ink-soft:#123832;
+    --paper:#FAFDFC;
+    --paper-dim:#E8F5F2;
+    --brass:#0BAF9C;
+    --brass-soft:#3FCDBA;
+    --magenta:#FF2E92;
+    --magenta-soft:#FF6FB0;
+    --line:#123832;
+    --line-light:#D6ECE7;
+    --ok:#1FA97C;
+    --warn:#D9524A;
+    --text-on-ink:#EAFBF8;
+    --text-on-ink-dim:#8FC9C0;
+    --text-on-paper:#0B2523;
+    --text-on-paper-dim:#5A6B69;
+    --radius:10px;
+    --serif:'Bricolage Grotesque', sans-serif;
+    --sans:'Inter', -apple-system, sans-serif;
+    --mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--text-on-paper);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  a{color:inherit;}
+  button{font-family:inherit; cursor:pointer;}
+  button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--brass);
+    outline-offset:2px;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    background:var(--ink);
+    color:var(--text-on-ink);
+    padding:22px clamp(20px,5vw,56px);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    font-family:var(--serif);
+    font-size:1.6rem;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  .brand em{
+    font-style:normal;
+    color:var(--magenta);
+  }
+  .tagline{
+    font-family:var(--mono);
+    font-size:0.72rem;
+    color:var(--text-on-ink-dim);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+
+  /* ---------- Layout shell ---------- */
+  .shell{
+    flex:1;
+    display:grid;
+    grid-template-columns:220px 1fr;
+    max-width:1180px;
+    margin:0 auto;
+    width:100%;
+  }
+  @media (max-width: 820px){
+    .shell{grid-template-columns:1fr;}
+    .rail{display:none;}
+  }
+
+  /* ---------- Stepper rail ---------- */
+  .rail{
+    padding:48px 24px;
+    border-right:1px solid var(--line-light);
+  }
+  .rail ol{list-style:none;}
+  .rail li{
+    position:relative;
+    padding:0 0 34px 28px;
+    font-family:var(--mono);
+    font-size:0.8rem;
+    color:var(--text-on-paper-dim);
+  }
+  .rail li::before{
+    content:attr(data-n);
+    position:absolute;
+    left:0; top:-1px;
+    width:20px; height:20px;
+    border:1px solid var(--line-light);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.68rem;
+    background:var(--paper);
+  }
+  .rail li::after{
+    content:'';
+    position:absolute;
+    left:9px; top:20px;
+    width:1px; height:calc(100% - 14px);
+    background:var(--line-light);
+  }
+  .rail li:last-child::after{display:none;}
+  .rail li.active{color:var(--text-on-paper); font-weight:600;}
+  .rail li.active::before{
+    background:var(--brass);
+    border-color:var(--brass);
+    color:var(--ink);
+    font-weight:700;
+  }
+  .rail li.done::before{
+    background:var(--ink);
+    border-color:var(--ink);
+    color:var(--paper);
+    content:'✓';
+  }
+  .rail li.clickable{cursor:pointer;}
+  .rail li.clickable:hover{color:var(--ink);}
+  .rail li.clickable:hover::before{border-color:var(--ink);}
+  .rail li.clickable:focus-visible{outline:2px solid var(--brass); outline-offset:4px; border-radius:4px;}
+
+  /* ---------- Main panel ---------- */
+  main{
+    padding:48px clamp(20px,5vw,56px) 80px;
+  }
+  .step{display:none;}
+  .step.active{display:block; animation:rise 0.35s ease;}
+  @keyframes rise{
+    from{opacity:0; transform:translateY(6px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .step h1{
+    font-family:var(--serif);
+    font-size:clamp(1.7rem,3vw,2.2rem);
+    font-weight:800;
+    letter-spacing:-0.01em;
+    margin-bottom:8px;
+  }
+  .step .sub{
+    color:var(--text-on-paper-dim);
+    font-size:0.95rem;
+    margin-bottom:32px;
+    max-width:52ch;
+  }
+
+  textarea, .dropzone{
+    width:100%;
+    background:#fff;
+    border:1px solid var(--line-light);
+    border-radius:var(--radius);
+    font-family:var(--sans);
+    font-size:0.95rem;
+    color:var(--text-on-paper);
+  }
+  textarea{
+    padding:16px;
+    min-height:220px;
+    resize:vertical;
+    line-height:1.55;
+  }
+  textarea::placeholder{color:#a9ab9f;}
+
+  .dropzone{
+    min-height:180px;
+    border-style:dashed;
+    border-width:1.5px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px;
+    padding:24px;
+    text-align:center;
+    transition:border-color 0.15s, background 0.15s;
+  }
+  .dropzone.drag{border-color:var(--brass); background:#EAFBF8;}
+  .dropzone .dz-title{font-weight:600; font-size:0.95rem;}
+  .dropzone .dz-sub{font-size:0.82rem; color:var(--text-on-paper-dim);}
+  .dropzone input[type=file]{display:none;}
+  .dz-browse{
+    color:var(--brass); text-decoration:underline; font-weight:600; cursor:pointer; background:none; border:none; font-size:0.85rem; padding:0;
+  }
+  .file-chip{
+    margin-top:14px;
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--ink); color:var(--text-on-ink);
+    padding:8px 14px; border-radius:var(--radius);
+    font-family:var(--mono); font-size:0.78rem;
+  }
+  .file-chip button{
+    background:none; border:none; color:var(--text-on-ink-dim); font-size:0.9rem; line-height:1;
+  }
+  .file-chip button:hover{color:#fff;}
+
+  .actions{
+    margin-top:32px;
+    display:flex; gap:12px; align-items:center;
+  }
+  .btn{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:0.88rem;
+    padding:13px 26px;
+    border-radius:var(--radius);
+    border:1px solid transparent;
+    transition:transform 0.12s, opacity 0.12s;
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{
+    background:var(--ink); color:var(--text-on-ink);
+  }
+  .btn-primary:hover{background:var(--ink-soft);}
+  .btn-primary:disabled{opacity:0.4; cursor:not-allowed;}
+  .btn-gold{
+    background:var(--brass); color:#fff;
+  }
+  .btn-gold:hover{background:var(--brass-soft);}
+  .btn-ghost{
+    background:transparent; color:var(--text-on-paper); border-color:var(--line-light);
+  }
+  .btn-ghost:hover{border-color:var(--ink);}
+  .btn-link{
+    background:none; border:none; color:var(--text-on-paper-dim); text-decoration:underline; font-size:0.85rem; font-weight:500; padding:0;
+  }
+
+  .error-banner{
+    margin-top:18px;
+    background:#fbeee7; border:1px solid var(--warn); color:#7a3417;
+    padding:14px 16px; border-radius:var(--radius);
+    font-size:0.88rem;
+  }
+
+  /* ---------- Loading state ---------- */
+  .loading-panel{
+    display:flex; flex-direction:column; align-items:flex-start; gap:16px;
+    padding:40px 0;
+  }
+  .spinner{
+    width:34px; height:34px;
+    border:2px solid var(--line-light);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-panel .msg{font-family:var(--mono); font-size:0.82rem; color:var(--text-on-paper-dim);}
+
+  /* ---------- Match gauge (signature element) ---------- */
+  .match-wrap{
+    display:flex; gap:48px; flex-wrap:wrap; align-items:flex-start;
+    margin-bottom:28px;
+  }
+  .gauge-block{
+    flex-shrink:0;
+    text-align:center;
+  }
+  .gauge-block .gauge-label{
+    font-family:var(--mono); font-size:0.7rem; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-on-paper-dim); margin-top:10px;
+  }
+  .rationale-block{flex:1; min-width:260px;}
+  .rationale-block .r-eyebrow{
+    font-family:var(--mono); font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--text-on-paper-dim); margin-bottom:8px;
+  }
+  .rationale-block p{font-size:1rem; line-height:1.6;}
+
+  .kw-section{margin-top:28px;}
+  .kw-title{font-weight:600; font-size:0.85rem; margin-bottom:10px;}
+  .kw-list{display:flex; flex-wrap:wrap; gap:8px;}
+  .kw-chip{
+    font-family:var(--mono); font-size:0.76rem;
+    padding:5px 11px; border-radius:20px; border:1px solid var(--line-light);
+  }
+  .kw-chip.matched{background:#E4F7F0; border-color:var(--ok); color:#0F6B4F;}
+  .kw-chip.missing{background:#FBEAE8; border-color:var(--warn); color:#902B24;}
+
+  .decision-row{
+    margin-top:38px;
+    padding-top:28px;
+    border-top:1px solid var(--line-light);
+    display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+  }
+  .decision-row .decision-note{
+    font-size:0.85rem; color:var(--text-on-paper-dim); width:100%; margin-bottom:4px;
+  }
+
+  /* ---------- Editable resume form ---------- */
+  .form-grid{display:flex; flex-direction:column; gap:28px; max-width:760px;}
+
+  .style-row{display:flex; gap:32px; flex-wrap:wrap; margin-bottom:6px;}
+
+  .mode-toggle{display:inline-flex; border:1px solid var(--line-light); border-radius:var(--radius); overflow:hidden; margin-bottom:4px;}
+  .mode-btn{
+    padding:10px 20px; font-size:0.85rem; font-weight:600; background:#fff; color:var(--text-on-paper-dim);
+    border:none; border-right:1px solid var(--line-light); cursor:pointer;
+  }
+  .mode-btn:last-child{border-right:none;}
+  .mode-btn.active{background:var(--ink); color:var(--text-on-ink);}
+
+  .banner-editor{
+    border:1px solid var(--line-light); border-radius:var(--radius); padding:20px; background:#fff;
+  }
+
+  /* ---- Free-form banner designer ---- */
+  .banner-toolbar{display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;}
+  .banner-text-options{
+    display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+    padding:10px 14px; margin-bottom:10px; background:var(--paper-dim); border-radius:var(--radius);
+  }
+  .bto-group{display:flex; align-items:center; gap:6px; font-size:0.8rem;}
+  .bto-group label{font-weight:600; color:var(--text-on-paper-dim); white-space:nowrap;}
+  .bto-group select, .bto-group input[type=number]{
+    padding:5px 8px; border:1px solid var(--line-light); border-radius:4px; font-size:0.8rem;
+  }
+  .bto-group input[type=color]{width:32px; height:28px; padding:0; border:1px solid var(--line-light); border-radius:4px; cursor:pointer;}
+  .bto-checkbox label{display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:500;}
+  .banner-designer{
+    position:relative; width:100%; max-width:700px; aspect-ratio:700/140;
+    border:1.5px dashed var(--line-light); border-radius:var(--radius);
+    background:
+      linear-gradient(45deg,#f3f3f0 25%,transparent 25%),
+      linear-gradient(-45deg,#f3f3f0 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#f3f3f0 75%),
+      linear-gradient(-45deg,transparent 75%,#f3f3f0 75%);
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0;
+    background-color:#fff;
+    overflow:hidden; touch-action:none;
+  }
+  .banner-designer-empty{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:20px; font-size:0.82rem; color:var(--text-on-paper-dim); pointer-events:none;
+  }
+  .banner-el{
+    position:absolute; cursor:move; box-sizing:border-box; border:1.5px solid transparent;
+  }
+  .banner-el.selected{border-color:var(--brass); z-index:5;}
+  .banner-el img{width:100%; height:100%; object-fit:contain; pointer-events:none; display:block;}
+  .banner-el .el-text{
+    width:100%; height:100%; overflow:hidden; white-space:pre-wrap; word-break:break-word;
+    outline:none; font-family:Georgia, serif; line-height:1.2;
+  }
+  .banner-el .resize-handle{
+    position:absolute; right:-7px; bottom:-7px; width:14px; height:14px; border-radius:50%;
+    background:var(--brass); border:2px solid #fff; cursor:nwse-resize; display:none;
+  }
+  .banner-el.selected .resize-handle{display:block;}
+  .banner-el .delete-handle{
+    position:absolute; top:-11px; right:-11px; width:20px; height:20px; border-radius:50%;
+    background:var(--warn); color:#fff; font-size:12px; line-height:20px; text-align:center;
+    cursor:pointer; display:none;
+  }
+  .banner-el.selected .delete-handle{display:block;}
+  .banner-action-row{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap;}
+  .banner-status{font-size:0.82rem; color:var(--ok); font-weight:600;}
+  .banner-reuse-row{margin-top:14px; padding-top:14px; border-top:1px solid var(--line-light); display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+
+  .style-group-label{font-size:0.78rem; font-weight:600; color:var(--text-on-paper-dim); margin-bottom:8px;}
+  .swatch-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .swatch{
+    width:28px; height:28px; border-radius:50%; border:2px solid transparent;
+    cursor:pointer; padding:0; position:relative;
+  }
+  .swatch:hover{transform:scale(1.08);}
+  .swatch.selected{border-color:var(--ink);}
+  .swatch.selected::after{
+    content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:0.7rem; font-weight:700;
+  }
+  #f_font{
+    padding:10px 13px; border:1px solid var(--line-light); border-radius:var(--radius);
+    font-family:var(--sans); font-size:0.9rem; background:#fff; min-width:220px;
+  }
+  .field label{
+    display:block; font-weight:600; font-size:0.82rem; margin-bottom:6px;
+  }
+  .field .hint{font-size:0.78rem; color:var(--text-on-paper-dim); margin-top:4px;}
+  input[type=text]{
+    width:100%; padding:11px 13px; border:1px solid var(--line-light); border-radius:var(--radius);
+    font-family:var(--sans); font-size:0.92rem; background:#fff;
+  }
+  .skills-input-row{display:flex; gap:8px; margin-bottom:10px;}
+  .skills-input-row input{flex:1;}
+
+  .entry-card{
+    border:1px solid var(--line-light); border-radius:var(--radius);
+    padding:20px; background:#fff; position:relative; margin-bottom:14px;
+  }
+  .entry-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;
+  }
+  .entry-grid.wide{grid-template-columns:1fr;}
+  .entry-remove{
+    position:absolute; top:14px; right:14px;
+    background:none; border:none; color:var(--text-on-paper-dim); font-size:0.78rem; text-decoration:underline;
+  }
+  .add-entry-btn{
+    font-size:0.82rem; font-weight:600; color:var(--ink); background:var(--paper-dim);
+    border:1px dashed var(--line-light); border-radius:var(--radius); padding:10px 16px; width:100%;
+  }
+  .add-entry-btn:hover{border-color:var(--brass); color:var(--brass);}
+
+  .notes-panel{
+    margin-top:36px; padding:22px; background:var(--ink); color:var(--text-on-ink);
+    border-radius:var(--radius); max-width:760px;
+  }
+  .notes-panel h3{font-family:var(--serif); font-weight:500; font-size:1.1rem; margin-bottom:14px;}
+  .notes-panel dt{font-family:var(--mono); font-size:0.7rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-on-ink-dim); margin-top:14px;}
+  .notes-panel dt:first-child{margin-top:0;}
+  .notes-panel dd{font-size:0.88rem; margin-top:5px; line-height:1.55;}
+  .notes-panel .tag-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;}
+  .notes-panel .tag{font-family:var(--mono); font-size:0.74rem; background:rgba(255,255,255,0.08); padding:3px 9px; border-radius:12px;}
+
+  .download-row{
+    margin-top:40px; padding-top:28px; border-top:1px solid var(--line-light);
+    display:flex; gap:14px; flex-wrap:wrap;
+  }
+
+  .tracker-box{
+    margin-top:32px; padding:24px; max-width:760px;
+    background:var(--paper-dim); border-radius:var(--radius);
+  }
+  .tracker-title{font-weight:700; font-size:0.95rem; margin-bottom:4px;}
+  .tracker-sub{font-size:0.85rem; color:var(--text-on-paper-dim); line-height:1.5; margin-bottom:16px;}
+  .tracker-row{display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;}
+  .tracker-status{font-size:0.85rem; margin-top:12px;}
+  .tracker-status.sending{color:var(--text-on-paper-dim);}
+  .tracker-status.ok{color:var(--ok); font-weight:600;}
+  .tracker-status.error{color:var(--warn); font-weight:600;}
+
+  footer{
+    text-align:center; font-family:var(--mono); font-size:0.72rem; color:var(--text-on-paper-dim);
+    padding:28px 20px; border-top:1px solid var(--line-light);
+  }
+
+  .visually-hidden{
+    position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;
+  }
+
+  /* ---------- Preview modal ---------- */
+  .modal-overlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(11,37,35,0.72);
+    z-index:100;
+    align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-card{
+    background:#fff;
+    width:100%; max-width:780px;
+    max-height:88vh;
+    border-radius:var(--radius);
+    display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+  }
+  .modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 22px;
+    border-bottom:1px solid var(--line-light);
+    font-family:var(--serif); font-size:1.05rem; font-weight:500;
+    color:var(--text-on-paper);
+  }
+  .modal-close{
+    background:none; border:none; font-size:1rem; color:var(--text-on-paper-dim);
+    line-height:1; padding:4px 6px;
+  }
+  .modal-close:hover{color:var(--text-on-paper);}
+  .modal-body{
+    padding:26px; overflow-y:auto; background:var(--paper-dim); flex:1;
+  }
+  .preview-surface{
+    background:#fff; max-width:640px; margin:0 auto;
+    padding:44px; font-family:var(--resume-font, Georgia, serif); font-size:13px; line-height:1.55; color:#1a1a1a;
+    box-shadow:0 1px 4px rgba(0,0,0,0.12);
+    min-height:200px;
+  }
+  .preview-surface .pt-consultancy-banner{
+    /* Bleed to the edges of the page — cancel out .preview-surface's own
+       44px padding on all three sides so the banner image sits flush
+       against the top/left/right instead of floating in whitespace. */
+    width:calc(100% + 88px); margin:-44px -44px 12px -44px;
+    padding-bottom:10px; border-bottom:2px solid #10151f;
+  }
+  .preview-surface .pt-consultancy-banner img{width:100%; height:auto; display:block;}
+  .preview-surface h2{
+    font-size:28px; font-weight:700; letter-spacing:-0.01em;
+    margin-bottom:2px; color:#10151f; text-align:center;
+  }
+  .preview-surface .pt-tagline{
+    font-size:14px; font-weight:600; color:var(--header-color, #a9791f); margin-bottom:4px; text-align:center;
+  }
+  .preview-surface .pt-contact{
+    font-size:12px; color:#5b6070; margin-bottom:10px; text-align:center;
+  }
+  .preview-surface .pt-header-rule{
+    border-bottom:2px solid #10151f; padding-bottom:14px; margin-bottom:14px;
+  }
+  .preview-surface .pt-section{margin-top:20px;}
+  .preview-surface .pt-label{
+    font-size:12.5px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
+    color:var(--header-color, #a9791f); border-bottom:1.5px solid #d7d8d2; padding-bottom:5px; margin-bottom:10px;
+  }
+  .preview-surface .pt-entry{margin-bottom:12px;}
+  .preview-surface .pt-entry-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px;}
+  .preview-surface .pt-entry-head span:first-child{font-weight:700; font-size:14.5px; color:#10151f;}
+  .preview-surface .pt-entry-head span:last-child{font-style:italic; font-size:12px; color:#5b6070; white-space:nowrap;}
+  .preview-surface .pt-entry-sub{font-size:12.5px; color:#5b6070; margin-top:1px; margin-bottom:5px;}
+  .preview-surface ul{margin:6px 0 0 18px;}
+  .preview-surface li{margin-bottom:3px;}
+  .modal-foot{
+    padding:16px 22px; border-top:1px solid var(--line-light);
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .modal-hint{font-size:0.8rem; color:var(--text-on-paper-dim);}
+  .modal-foot-actions{display:flex; gap:10px; flex-wrap:wrap;}
+
+  /* NOTE: the PDF is no longer generated by screenshotting a hidden DOM
+     element (html2canvas repeatedly produced blank captures regardless of
+     how the source element was hidden/positioned). PDF export now uses
+     jsPDF's text/drawing API directly — see generatePdf() in the script
+     below. The .preview-surface styles above remain in use for the
+     on-screen "Preview resume" modal. */
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="brand">Resume<em>Tailor</em></div>
+    <div class="tagline">Match · Tailor · Download</div>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="rail" aria-label="Progress">
+    <ol id="stepRail">
+      <li data-n="1" data-step="jd" class="active">Job description</li>
+      <li data-n="2" data-step="resume">Resume</li>
+      <li data-n="3" data-step="match">Match score</li>
+      <li data-n="4" data-step="tailor">Tailor &amp; download</li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- STEP 1: JD -->
+    <section class="step active" data-step="jd">
+      <h1>Paste the job description</h1>
+      <p class="sub">Include the full posting — required and preferred qualifications matter most for scoring.</p>
+      <textarea id="jdInput" placeholder="Paste the job description here…"></textarea>
+      <div class="actions">
+        <button class="btn btn-primary" id="toResumeBtn" disabled>Continue</button>
+      </div>
+    </section>
+
+    <!-- STEP 2: Resume upload -->
+    <section class="step" data-step="resume">
+      <h1>Upload your resume</h1>
+      <p class="sub">PDF only. Nothing is stored — it's used for this session and discarded.</p>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload resume PDF">
+        <div class="dz-title">Drag your resume here</div>
+        <div class="dz-sub">or <button class="dz-browse" id="browseBtn" type="button">browse files</button></div>
+        <input type="file" id="fileInput" accept="application/pdf">
+      </div>
+      <div id="fileChipWrap"></div>
+      <div class="actions">
+        <button class="btn btn-ghost" data-back="jd">Back</button>
+        <button class="btn btn-primary" id="toMatchBtn" disabled>Analyze match</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: Analyzing / Match result -->
+    <section class="step" data-step="match">
+      <div id="matchLoading" class="loading-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="msg">Comparing your resume against the job description…</div>
+      </div>
+
+      <div id="matchResultWrap" style="display:none;">
+        <h1>Here's your match</h1>
+        <p class="sub">This reflects your resume as uploaded — before any changes.</p>
+
+        <div class="match-wrap">
+          <div class="gauge-block">
+            <svg id="gaugeSvg" width="140" height="140" viewBox="0 0 140 140" role="img" aria-labelledby="gaugeTitle">
+              <title id="gaugeTitle">Match percentage</title>
+              <circle cx="70" cy="70" r="58" fill="none" stroke="#E8F5F2" stroke-width="10"/>
+              <circle id="gaugeArc" cx="70" cy="70" r="58" fill="none" stroke="#FF2E92" stroke-width="10"
+                stroke-linecap="round" stroke-dasharray="364.4" stroke-dashoffset="364.4"
+                transform="rotate(-90 70 70)"/>
+              <text id="gaugeNum" x="70" y="66" text-anchor="middle" font-family="'IBM Plex Mono', monospace"
+                font-size="30" font-weight="600" fill="#0B2523">0%</text>
+              <text x="70" y="86" text-anchor="middle" font-family="'IBM Plex Mono', monospace"
+                font-size="9" letter-spacing="1" fill="#5A6B69">MATCH</text>
+            </svg>
+          </div>
+          <div class="rationale-block">
+            <div class="r-eyebrow">Why this score</div>
+            <p id="rationaleText"></p>
+          </div>
+        </div>
+
+        <div class="kw-section">
+          <div class="kw-title">Present in your resume</div>
+          <div class="kw-list" id="matchedKwList"></div>
+        </div>
+        <div class="kw-section">
+          <div class="kw-title">Missing from your resume</div>
+          <div class="kw-list" id="missingKwList"></div>
+        </div>
+
+        <div class="decision-row">
+          <div class="decision-note">Happy with this score, or want a version tailored to close the gaps?</div>
+          <button class="btn btn-ghost" data-back="resume">Back</button>
+          <button class="btn btn-ghost" id="happyBtn">I'm happy with this — finish here</button>
+          <button class="btn btn-gold" id="tailorBtn">Tailor my resume</button>
+        </div>
+      </div>
+
+      <div id="matchErrorWrap" style="display:none;">
+        <h1>Something went wrong</h1>
+        <p class="sub" id="matchErrorMsg">The analysis couldn't complete. Try again.</p>
+        <div class="actions">
+          <button class="btn btn-ghost" data-back="resume">Back</button>
+          <button class="btn btn-primary" id="retryMatchBtn">Try again</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 4: Tailoring loading -->
+    <section class="step" data-step="tailorLoading">
+      <div class="loading-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="msg">Rewriting your resume against the job description — this can take up to a minute…</div>
+      </div>
+    </section>
+
+    <!-- STEP 5: Editable tailored resume -->
+    <section class="step" data-step="tailor">
+      <h1>Review your tailored resume</h1>
+      <p class="sub">Edit anything before downloading. New match score: <strong id="newScoreInline">—</strong></p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>Resume mode</label>
+          <div class="mode-toggle" role="radiogroup" aria-label="Resume mode">
+            <button type="button" class="mode-btn active" id="modeCandiateBtn" data-mode="candidate">Candidate</button>
+            <button type="button" class="mode-btn" id="modeConsultancyBtn" data-mode="consultancy">Consultancy</button>
+          </div>
+          <div class="hint">Consultancy mode adds a company letterhead banner above the candidate's own header — useful when a staffing/consulting firm is submitting the resume on the candidate's behalf.</div>
+        </div>
+
+        <div class="field" id="bannerField" style="display:none;">
+          <label>Consultancy header banner</label>
+          <div class="banner-toolbar">
+            <button type="button" class="btn btn-ghost" id="addBannerImageBtn">+ Add image</button>
+            <button type="button" class="btn btn-ghost" id="addBannerTextBtn">+ Add text</button>
+            <button type="button" class="btn btn-ghost" id="uploadBannerFontBtn">+ Upload font</button>
+            <button type="button" class="btn btn-ghost" id="clearBannerBtn">Clear all</button>
+            <input type="file" id="bannerImageInput" accept="image/*" style="display:none;">
+            <input type="file" id="bannerFontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;">
+          </div>
+          <div class="banner-text-options" id="bannerTextOptions" style="display:none;">
+            <div class="bto-group">
+              <label for="bannerFontSelect">Font</label>
+              <select id="bannerFontSelect">
+                <option value="Georgia, serif">Georgia (default)</option>
+              </select>
+            </div>
+            <div class="bto-group">
+              <label for="bannerFontSize">Size</label>
+              <input type="number" id="bannerFontSize" min="8" max="72" step="1" style="width:60px;">
+            </div>
+            <div class="bto-group">
+              <label for="bannerFontColor">Color</label>
+              <input type="color" id="bannerFontColor">
+            </div>
+            <div class="bto-group bto-checkbox">
+              <label><input type="checkbox" id="bannerFontBold"> Bold</label>
+            </div>
+          </div>
+          <div class="banner-designer" id="bannerDesigner">
+            <div class="banner-designer-empty" id="bannerDesignerEmpty">Add images and text, then drag them anywhere in this space to build your letterhead.</div>
+          </div>
+          <div class="banner-action-row">
+            <button type="button" class="btn btn-gold" id="saveBannerBtn">Save banner &amp; use in resume</button>
+            <span class="banner-status" id="bannerStatus"></span>
+          </div>
+          <div class="hint">
+            Click an element to select it — drag to move, drag the bottom-right dot to resize, double-click text to edit it, use the × to delete.
+            Select a text element to change its font, size, color, or weight — upload your company's own font file first if you want to use it.
+            "Save banner" flattens everything into one image, downloads it to your computer, and applies it to this resume.
+            Next time, skip straight to "Reuse a saved banner image" below instead of rebuilding it.
+          </div>
+          <div class="banner-reuse-row">
+            <label for="bannerReuseInput" class="btn btn-ghost" style="display:inline-block;">Reuse a saved banner image</label>
+            <input type="file" id="bannerReuseInput" accept="image/*" style="display:none;">
+            <span class="banner-status" id="bannerReuseStatus"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Header</label>
+          <div class="entry-grid">
+            <div class="field"><label for="f_name">Full name</label><input type="text" id="f_name" placeholder="Jane Doe"></div>
+            <div class="field"><label for="f_title">Professional title / tagline</label><input type="text" id="f_title" placeholder="Senior Backend Engineer | Distributed Systems"></div>
+          </div>
+          <div class="entry-grid">
+            <div class="field"><label for="f_phone">Phone</label><input type="text" id="f_phone" placeholder="+1 555 123 4567"></div>
+            <div class="field"><label for="f_email">Email</label><input type="text" id="f_email" placeholder="jane@example.com"></div>
+          </div>
+          <div class="entry-grid wide">
+            <div class="field"><label for="f_portfolio">Portfolio / LinkedIn / GitHub link</label><input type="text" id="f_portfolio" placeholder="https://github.com/janedoe"></div>
+          </div>
+          <div class="hint">Name, phone, and email are auto-filled from your uploaded resume when found — check they're correct, and add your portfolio/LinkedIn link yourself.</div>
+        </div>
+
+        <div class="field">
+          <label>Style</label>
+          <div class="style-row">
+            <div class="style-group">
+              <div class="style-group-label">Accent color</div>
+              <div class="swatch-row" id="colorSwatches" role="radiogroup" aria-label="Header accent color"></div>
+            </div>
+            <div class="style-group">
+              <div class="style-group-label">Font</div>
+              <select id="f_font"></select>
+            </div>
+          </div>
+          <div class="hint">Applies to the section headings and downloads (Preview, Word, and PDF all match).</div>
+        </div>
+
+        <div class="field">
+          <label for="f_summary">Professional summary</label>
+          <textarea id="f_summary" style="min-height:100px;"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="f_skillInput">Skills</label>
+          <div class="skills-input-row">
+            <input type="text" id="f_skillInput" placeholder="Add a skill and press Enter">
+            <button class="btn btn-ghost" id="addSkillBtn" type="button">Add</button>
+          </div>
+          <div class="kw-list" id="skillsChipList"></div>
+        </div>
+
+        <div class="field">
+          <label>Experience</label>
+          <div id="experienceList"></div>
+          <button class="add-entry-btn" id="addExperienceBtn" type="button">+ Add experience entry</button>
+        </div>
+
+        <div class="field">
+          <label>Education</label>
+          <div id="educationList"></div>
+          <button class="add-entry-btn" id="addEducationBtn" type="button">+ Add education entry</button>
+        </div>
+      </div>
+
+      <div class="notes-panel" id="notesPanel" style="display:none;">
+        <h3>Tailoring notes</h3>
+        <dl id="notesContent"></dl>
+      </div>
+
+      <div class="download-row">
+        <button class="btn btn-ghost" data-back="match">Back to match score</button>
+        <button class="btn btn-ghost" id="previewBtn">Preview resume</button>
+        <button class="btn btn-primary" id="downloadDocxBtn">Download as Word (.docx)</button>
+        <button class="btn btn-gold" id="downloadPdfBtn">Download as PDF</button>
+      </div>
+
+      <div class="tracker-box">
+        <div class="tracker-head">
+          <div class="tracker-title">Keep track of this application</div>
+          <div class="tracker-sub">We'll email you this tailored resume (as PDF) together with the job description, so you have a record of exactly what you sent for this application.</div>
+        </div>
+        <div class="tracker-row">
+          <div class="field" style="flex:1; margin-bottom:0;">
+            <label for="f_sendEmail">Send a copy to</label>
+            <input type="text" id="f_sendEmail" placeholder="you@example.com">
+          </div>
+          <button class="btn btn-primary" id="emailCopyBtn" type="button">Email me this application</button>
+        </div>
+        <div class="tracker-status" id="trackerStatus"></div>
+      </div>
+    </section>
+
+    <!-- STEP: Finished (happy path without tailoring) -->
+    <section class="step" data-step="finished">
+      <h1>All set</h1>
+      <p class="sub">You chose to keep your resume as-is. Nothing further is needed — come back anytime to try a different job description.</p>
+      <div class="actions">
+        <button class="btn btn-primary" id="restartBtn">Start over</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>Nothing you upload is stored — each session starts fresh.</footer>
+
+<!-- Preview modal: shows exactly what the PDF/download will contain -->
+<div class="modal-overlay" id="previewOverlay" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span id="previewTitle">Preview — this is what you'll download</span>
+      <button class="modal-close" id="closePreviewBtn" type="button" aria-label="Close preview">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="previewSurface" class="preview-surface"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="modal-hint">Not what you expected? Close this and keep editing below.</span>
+      <div class="modal-foot-actions">
+        <button class="btn btn-primary" id="modalDownloadDocxBtn">Download as Word (.docx)</button>
+        <button class="btn btn-gold" id="modalDownloadPdfBtn">Download as PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PDF export no longer needs a hidden DOM template — see generatePdf() -->
+
+<script>
+(function(){
+  // ---------- CONFIG ----------
+  // Update these if your n8n webhook URLs change.
+  const ANALYZE_URL = "https://santhothaiyur.app.n8n.cloud/webhook/analyze-match";
+  const TAILOR_URL  = "https://santhothaiyur.app.n8n.cloud/webhook/tailor-resume";
+  // New: mirrors the pattern of the other two — you'll need to build this
+  // workflow in n8n (Webhook -> Code node base64->binary -> Send Email ->
+  // Respond to Webhook). See workflow-email-resume.json.
+  const EMAIL_URL   = "https://santhothaiyur.app.n8n.cloud/webhook/email-resume";
+
+  // 10 dark accent-color options for section headings/tagline. Kept dark
+  // deliberately — light colors don't hold contrast well as resume accents.
+  const COLOR_OPTIONS = [
+    { name: "Brass",      hex: "#A9791F" },
+    { name: "Deep Navy",  hex: "#1B2A4A" },
+    { name: "Forest",     hex: "#1F4D36" },
+    { name: "Burgundy",   hex: "#6B1F2A" },
+    { name: "Charcoal",   hex: "#2C2C2C" },
+    { name: "Deep Teal",  hex: "#14403D" },
+    { name: "Plum",       hex: "#4A1F4D" },
+    { name: "Slate Blue", hex: "#2F3A56" },
+    { name: "Rust",       hex: "#7A3417" },
+    { name: "Ink Black",  hex: "#10151F" }
+  ];
+
+  // Fonts limited to ones that render identically (or near-identically)
+  // across the browser preview, jsPDF (built-in fonts only: helvetica,
+  // times, courier), and Word/.docx — so Preview always matches the
+  // actual downloads rather than just looking different in-browser.
+  const FONT_OPTIONS = [
+    { label: "Classic Serif (Times New Roman)", cssFamily: "'Times New Roman', Georgia, serif", jspdfFont: "times",     docxFont: "Times New Roman" },
+    { label: "Modern Sans (Arial)",              cssFamily: "Arial, Helvetica, sans-serif",       jspdfFont: "helvetica", docxFont: "Arial" },
+    { label: "Monospace (Courier New)",          cssFamily: "'Courier New', monospace",           jspdfFont: "courier",   docxFont: "Courier New" }
+  ];
+
+  // ---------- STATE ----------
+  const state = {
+    jdText: "",
+    resumeBase64: null,
+    resumeFilename: null,
+    matchResult: null,
+    tailored: null, // { summary, matchScore, skills, experience, education, tailoringNotes }
+    headerColor: COLOR_OPTIONS[0].hex,
+    fontIndex: 0,
+    resumeMode: "candidate", // "candidate" | "consultancy"
+    bannerElements: [],      // [{ id, type:'image'|'text', x, y, w, h, content, fontSize, color, bold }]
+    bannerSelectedId: null,
+    // The final, ready-to-use banner: either flattened from bannerElements via
+    // "Save banner", or uploaded directly as a previously-saved banner image.
+    bannerFinalImage: null,  // { dataUrl, aspectRatio } or null
+    customFonts: []          // [{ id, name, fontFamily }] — uploaded once, reusable across text elements
+  };
+
+  const BANNER_DESIGNER_W = 700;
+  const BANNER_DESIGNER_H = 140;
+
+  function hexToRgb(hex){
+    const h = hex.replace("#","");
+    return [
+      parseInt(h.substring(0,2),16),
+      parseInt(h.substring(2,4),16),
+      parseInt(h.substring(4,6),16)
+    ];
+  }
+
+  // ---------- Style controls (color swatches + font select) ----------
+  const colorSwatches = document.getElementById("colorSwatches");
+  const f_font = document.getElementById("f_font");
+
+  COLOR_OPTIONS.forEach(opt=>{
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "swatch" + (opt.hex === state.headerColor ? " selected" : "");
+    btn.style.background = opt.hex;
+    btn.setAttribute("aria-label", opt.name);
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", opt.hex === state.headerColor ? "true" : "false");
+    btn.dataset.hex = opt.hex;
+    btn.addEventListener("click", ()=>{
+      state.headerColor = opt.hex;
+      colorSwatches.querySelectorAll(".swatch").forEach(s=>{
+        s.classList.toggle("selected", s.dataset.hex === opt.hex);
+        s.setAttribute("aria-checked", s.dataset.hex === opt.hex ? "true" : "false");
+      });
+    });
+    colorSwatches.appendChild(btn);
+  });
+
+  FONT_OPTIONS.forEach((opt, i)=>{
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = opt.label;
+    f_font.appendChild(o);
+  });
+  f_font.value = state.fontIndex;
+  f_font.addEventListener("change", ()=>{
+    state.fontIndex = parseInt(f_font.value, 10);
+  });
+
+  // ---------- Resume mode toggle (Candidate / Consultancy) ----------
+  const modeCandiateBtn = document.getElementById("modeCandiateBtn");
+  const modeConsultancyBtn = document.getElementById("modeConsultancyBtn");
+  const bannerField = document.getElementById("bannerField");
+
+  function setResumeMode(mode){
+    state.resumeMode = mode;
+    modeCandiateBtn.classList.toggle("active", mode === "candidate");
+    modeConsultancyBtn.classList.toggle("active", mode === "consultancy");
+    bannerField.style.display = mode === "consultancy" ? "block" : "none";
+  }
+  modeCandiateBtn.addEventListener("click", ()=> setResumeMode("candidate"));
+  modeConsultancyBtn.addEventListener("click", ()=> setResumeMode("consultancy"));
+
+  // ---------- Free-form consultancy banner designer ----------
+  const bannerDesigner = document.getElementById("bannerDesigner");
+  const bannerDesignerEmpty = document.getElementById("bannerDesignerEmpty");
+  const bannerImageInput = document.getElementById("bannerImageInput");
+  const bannerStatus = document.getElementById("bannerStatus");
+  const bannerReuseStatus = document.getElementById("bannerReuseStatus");
+
+  let bannerElIdCounter = 1;
+
+  function updateBannerEmptyState(){
+    bannerDesignerEmpty.style.display = state.bannerElements.length ? "none" : "flex";
+  }
+
+  function pxToDesignerPct(px, dimension){
+    // Elements are stored/positioned as percentages of the designer's fixed
+    // logical size, so the same layout scales correctly at any on-screen
+    // size and at the higher-resolution size used for the flattened export.
+    return (px / dimension) * 100;
+  }
+
+  function addImageElement(dataUrl, naturalW, naturalH){
+    // Default size: fit within a sensible box while preserving aspect ratio.
+    const maxW = BANNER_DESIGNER_W * 0.28, maxH = BANNER_DESIGNER_H * 0.7;
+    let w = naturalW, h = naturalH;
+    const scale = Math.min(maxW / w, maxH / h, 1);
+    w *= scale; h *= scale;
+    const el = {
+      id: "el" + (bannerElIdCounter++),
+      type: "image",
+      x: 12, y: (BANNER_DESIGNER_H - h) / 2,
+      w, h,
+      content: dataUrl
+    };
+    state.bannerElements.push(el);
+    renderBannerElement(el);
+    selectBannerElement(el.id);
+    updateBannerEmptyState();
+  }
+
+  function addTextElement(){
+    const el = {
+      id: "el" + (bannerElIdCounter++),
+      type: "text",
+      x: 200, y: 40, w: 300, h: 60,
+      content: "Company Name",
+      fontSize: 18, color: "#10151f", bold: true,
+      fontFamily: "Georgia, serif"
+    };
+    state.bannerElements.push(el);
+    renderBannerElement(el);
+    selectBannerElement(el.id);
+    updateBannerEmptyState();
+  }
+
+  function renderBannerElement(el){
+    const div = document.createElement("div");
+    div.className = "banner-el";
+    div.id = "banner-" + el.id;
+    div.style.left = pxToDesignerPct(el.x, BANNER_DESIGNER_W) + "%";
+    div.style.top = pxToDesignerPct(el.y, BANNER_DESIGNER_H) + "%";
+    div.style.width = pxToDesignerPct(el.w, BANNER_DESIGNER_W) + "%";
+    div.style.height = pxToDesignerPct(el.h, BANNER_DESIGNER_H) + "%";
+
+    if (el.type === "image"){
+      const img = document.createElement("img");
+      img.src = el.content;
+      img.draggable = false;
+      div.appendChild(img);
+    } else {
+      const textDiv = document.createElement("div");
+      textDiv.className = "el-text";
+      textDiv.textContent = el.content;
+      textDiv.style.fontSize = el.fontSize + "px";
+      textDiv.style.color = el.color;
+      textDiv.style.fontWeight = el.bold ? "700" : "400";
+      textDiv.style.fontFamily = el.fontFamily || "Georgia, serif";
+      div.appendChild(textDiv);
+
+      textDiv.addEventListener("dblclick", (e)=>{
+        e.stopPropagation();
+        textDiv.contentEditable = "true";
+        textDiv.focus();
+        document.execCommand("selectAll", false, null);
+      });
+      textDiv.addEventListener("blur", ()=>{
+        textDiv.contentEditable = "false";
+        el.content = textDiv.textContent;
+      });
+      textDiv.addEventListener("pointerdown", (e)=>{
+        if (textDiv.contentEditable === "true") e.stopPropagation();
+      });
+    }
+
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "resize-handle";
+    div.appendChild(resizeHandle);
+
+    const deleteHandle = document.createElement("div");
+    deleteHandle.className = "delete-handle";
+    deleteHandle.textContent = "×";
+    deleteHandle.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      deleteBannerElement(el.id);
+    });
+    div.appendChild(deleteHandle);
+
+    div.addEventListener("pointerdown", (e)=> startBannerDrag(e, el, div));
+    resizeHandle.addEventListener("pointerdown", (e)=> startBannerResize(e, el, div));
+    div.addEventListener("click", (e)=>{ e.stopPropagation(); selectBannerElement(el.id); });
+
+    bannerDesigner.appendChild(div);
+  }
+
+  const bannerTextOptions = document.getElementById("bannerTextOptions");
+  const bannerFontSelect = document.getElementById("bannerFontSelect");
+  const bannerFontSize = document.getElementById("bannerFontSize");
+  const bannerFontColor = document.getElementById("bannerFontColor");
+  const bannerFontBold = document.getElementById("bannerFontBold");
+
+  function getSelectedBannerElement(){
+    return state.bannerElements.find(e => e.id === state.bannerSelectedId) || null;
+  }
+
+  function selectBannerElement(id){
+    state.bannerSelectedId = id;
+    bannerDesigner.querySelectorAll(".banner-el").forEach(d=>{
+      d.classList.toggle("selected", d.id === "banner-" + id);
+    });
+
+    const el = getSelectedBannerElement();
+    if (el && el.type === "text"){
+      bannerTextOptions.style.display = "flex";
+      bannerFontSelect.value = el.fontFamily || "Georgia, serif";
+      bannerFontSize.value = el.fontSize;
+      bannerFontColor.value = el.color;
+      bannerFontBold.checked = !!el.bold;
+    } else {
+      bannerTextOptions.style.display = "none";
+    }
+  }
+  bannerDesigner.addEventListener("click", ()=> selectBannerElement(null));
+
+  function updateSelectedTextElement(){
+    const el = getSelectedBannerElement();
+    if (!el || el.type !== "text") return;
+    const domTextDiv = document.querySelector("#banner-" + el.id + " .el-text");
+    if (!domTextDiv) return;
+    domTextDiv.style.fontFamily = el.fontFamily;
+    domTextDiv.style.fontSize = el.fontSize + "px";
+    domTextDiv.style.color = el.color;
+    domTextDiv.style.fontWeight = el.bold ? "700" : "400";
+  }
+
+  bannerFontSelect.addEventListener("change", ()=>{
+    const el = getSelectedBannerElement();
+    if (!el) return;
+    el.fontFamily = bannerFontSelect.value;
+    updateSelectedTextElement();
+  });
+  bannerFontSize.addEventListener("input", ()=>{
+    const el = getSelectedBannerElement();
+    if (!el) return;
+    el.fontSize = parseInt(bannerFontSize.value, 10) || el.fontSize;
+    updateSelectedTextElement();
+  });
+  bannerFontColor.addEventListener("input", ()=>{
+    const el = getSelectedBannerElement();
+    if (!el) return;
+    el.color = bannerFontColor.value;
+    updateSelectedTextElement();
+  });
+  bannerFontBold.addEventListener("change", ()=>{
+    const el = getSelectedBannerElement();
+    if (!el) return;
+    el.bold = bannerFontBold.checked;
+    updateSelectedTextElement();
+  });
+
+  // ---- Custom font upload ----
+  // Registers the uploaded font with the browser via the FontFace API, so it
+  // renders live in the designer AND is available to the canvas when the
+  // banner gets flattened — meaning it's baked into the final image and will
+  // display correctly in the PDF/Word output even without the font installed
+  // on whoever opens those files.
+  let customFontIdCounter = 1;
+  document.getElementById("uploadBannerFontBtn").addEventListener("click", ()=> document.getElementById("bannerFontInput").click());
+  document.getElementById("bannerFontInput").addEventListener("change", async (e)=>{
+    const file = e.target.files[0];
+    if (!file) return;
+    const validExt = /\.(ttf|otf|woff2?|)$/i.test(file.name) || file.type.startsWith("font/");
+    if (!validExt){
+      alert("Please upload a font file (.ttf, .otf, .woff, or .woff2).");
+      return;
+    }
+    try{
+      const buffer = await file.arrayBuffer();
+      const safeName = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]/g, "_");
+      const fontFamily = "cf_" + (customFontIdCounter++) + "_" + safeName;
+      const fontFace = new FontFace(fontFamily, buffer);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+
+      state.customFonts.push({ id: fontFamily, name: file.name.replace(/\.[^.]+$/, ""), fontFamily });
+      const opt = document.createElement("option");
+      opt.value = fontFamily;
+      opt.textContent = file.name.replace(/\.[^.]+$/, "");
+      opt.style.fontFamily = fontFamily;
+      bannerFontSelect.appendChild(opt);
+
+      // If a text element is currently selected, apply the newly uploaded
+      // font to it immediately — the common case is "upload font, then use it".
+      const el = getSelectedBannerElement();
+      if (el && el.type === "text"){
+        el.fontFamily = fontFamily;
+        bannerFontSelect.value = fontFamily;
+        updateSelectedTextElement();
+      }
+    } catch(err){
+      console.error("Font upload failed:", err);
+      alert("Couldn't load that font file — try a different .ttf/.otf/.woff file.");
+    }
+    e.target.value = "";
+  });
+
+  function deleteBannerElement(id){
+    state.bannerElements = state.bannerElements.filter(e => e.id !== id);
+    const domEl = document.getElementById("banner-" + id);
+    if (domEl) domEl.remove();
+    updateBannerEmptyState();
+  }
+
+  function startBannerDrag(e, el, div){
+    if (e.target.classList.contains("resize-handle") || e.target.classList.contains("delete-handle")) return;
+    if (el.type === "text" && div.querySelector(".el-text").contentEditable === "true") return;
+    e.preventDefault();
+    selectBannerElement(el.id);
+    const rect = bannerDesigner.getBoundingClientRect();
+    const scaleX = BANNER_DESIGNER_W / rect.width, scaleY = BANNER_DESIGNER_H / rect.height;
+    const startX = e.clientX, startY = e.clientY;
+    const origX = el.x, origY = el.y;
+
+    function onMove(ev){
+      const dx = (ev.clientX - startX) * scaleX, dy = (ev.clientY - startY) * scaleY;
+      el.x = Math.max(0, Math.min(BANNER_DESIGNER_W - el.w, origX + dx));
+      el.y = Math.max(0, Math.min(BANNER_DESIGNER_H - el.h, origY + dy));
+      div.style.left = pxToDesignerPct(el.x, BANNER_DESIGNER_W) + "%";
+      div.style.top = pxToDesignerPct(el.y, BANNER_DESIGNER_H) + "%";
+    }
+    function onUp(){
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }
+
+  function startBannerResize(e, el, div){
+    e.preventDefault();
+    e.stopPropagation();
+    selectBannerElement(el.id);
+    const rect = bannerDesigner.getBoundingClientRect();
+    const scaleX = BANNER_DESIGNER_W / rect.width, scaleY = BANNER_DESIGNER_H / rect.height;
+    const startX = e.clientX, startY = e.clientY;
+    const origW = el.w, origH = el.h;
+    const aspect = origW / origH;
+
+    function onMove(ev){
+      const dx = (ev.clientX - startX) * scaleX, dy = (ev.clientY - startY) * scaleY;
+      let newW = Math.max(20, origW + dx);
+      let newH = el.type === "image" ? newW / aspect : Math.max(16, origH + dy);
+      el.w = Math.min(newW, BANNER_DESIGNER_W - el.x);
+      el.h = Math.min(newH, BANNER_DESIGNER_H - el.y);
+      div.style.width = pxToDesignerPct(el.w, BANNER_DESIGNER_W) + "%";
+      div.style.height = pxToDesignerPct(el.h, BANNER_DESIGNER_H) + "%";
+    }
+    function onUp(){
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }
+
+  document.getElementById("addBannerImageBtn").addEventListener("click", ()=> bannerImageInput.click());
+  bannerImageInput.addEventListener("change", ()=>{
+    const file = bannerImageInput.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")){ alert("Please upload an image file."); return; }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=> addImageElement(reader.result, img.naturalWidth, img.naturalHeight);
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    bannerImageInput.value = "";
+  });
+
+  document.getElementById("addBannerTextBtn").addEventListener("click", addTextElement);
+
+  document.getElementById("clearBannerBtn").addEventListener("click", ()=>{
+    if (state.bannerElements.length && !confirm("Remove all elements from the banner designer?")) return;
+    state.bannerElements = [];
+    state.bannerSelectedId = null;
+    bannerDesigner.querySelectorAll(".banner-el").forEach(d=>d.remove());
+    updateBannerEmptyState();
+  });
+
+  // Flattens every element into one image (via an offscreen canvas at 2x
+  // resolution for crispness), which becomes the single banner image used
+  // everywhere the resume is rendered — and is also what gets downloaded so
+  // the user can reuse it next time without rebuilding it.
+  async function flattenBannerToImage(){
+    const SCALE = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = BANNER_DESIGNER_W * SCALE;
+    canvas.height = BANNER_DESIGNER_H * SCALE;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Make sure every uploaded custom font is fully parsed and ready before
+    // drawing — otherwise the canvas can silently fall back to a default
+    // font for the first flatten right after an upload.
+    await document.fonts.ready;
+
+    for (const el of state.bannerElements){
+      if (el.type === "image"){
+        const img = await new Promise((resolve, reject)=>{
+          const im = new Image();
+          im.onload = ()=> resolve(im);
+          im.onerror = reject;
+          im.src = el.content;
+        });
+        ctx.drawImage(img, el.x*SCALE, el.y*SCALE, el.w*SCALE, el.h*SCALE);
+      } else {
+        ctx.fillStyle = el.color;
+        const family = el.fontFamily || "Georgia, serif";
+        // Quote the family name defensively — required for names with spaces,
+        // harmless otherwise.
+        ctx.font = `${el.bold ? "700" : "400"} ${el.fontSize*SCALE}px "${family.replace(/"/g,'')}"`;
+        ctx.textBaseline = "top";
+        const lines = el.content.split("\n");
+        const lineHeight = el.fontSize * SCALE * 1.25;
+        lines.forEach((line, i)=>{
+          ctx.fillText(line, el.x*SCALE, el.y*SCALE + i*lineHeight, el.w*SCALE);
+        });
+      }
+    }
+    return canvas.toDataURL("image/png");
+  }
+
+  document.getElementById("saveBannerBtn").addEventListener("click", async ()=>{
+    if (!state.bannerElements.length){
+      bannerStatus.textContent = "Add at least one image or text element first.";
+      bannerStatus.style.color = "var(--warn)";
+      return;
+    }
+    bannerStatus.textContent = "Saving…";
+    bannerStatus.style.color = "var(--text-on-paper-dim)";
+    try{
+      const dataUrl = await flattenBannerToImage();
+      state.bannerFinalImage = { dataUrl, aspectRatio: BANNER_DESIGNER_W / BANNER_DESIGNER_H };
+
+      // Trigger a local download so the user can reuse this exact banner
+      // next time without rebuilding it.
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = "resume-header-banner.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      bannerStatus.textContent = "Saved — downloaded to your computer and applied to this resume.";
+      bannerStatus.style.color = "var(--ok)";
+    } catch(err){
+      console.error("Banner flatten failed:", err);
+      bannerStatus.textContent = "Something went wrong saving the banner. Try again.";
+      bannerStatus.style.color = "var(--warn)";
+    }
+  });
+
+  // Reuse a previously-saved banner image directly, skipping the designer.
+  document.getElementById("bannerReuseInput").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")){ alert("Please upload an image file."); return; }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        state.bannerFinalImage = { dataUrl: reader.result, aspectRatio: img.naturalWidth / img.naturalHeight };
+        bannerReuseStatus.textContent = "Loaded — applied to this resume.";
+        bannerReuseStatus.style.color = "var(--ok)";
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  });
+
+
+
+  // ---------- STEP NAVIGATION ----------
+  const steps = Array.from(document.querySelectorAll(".step"));
+  const railItems = Array.from(document.querySelectorAll("#stepRail li"));
+  const railOrder = ["jd","resume","match","tailor"]; // "tailorLoading" and "finished" are not on the rail
+
+  // Tracks the furthest step reached so far, so the rail can tell which
+  // steps are safe to jump back to from wherever the user currently is
+  // (including "finished", which sits past the end of railOrder).
+  let furthestIndex = 0;
+
+  function showStep(name){
+    steps.forEach(s => s.classList.toggle("active", s.dataset.step === name));
+    const idx = railOrder.indexOf(name);
+    const effectiveIdx = idx === -1 ? railOrder.length : idx; // "tailorLoading"/"finished" count as past the last rail step
+    furthestIndex = Math.max(furthestIndex, effectiveIdx);
+    railItems.forEach((li) => {
+      const liIdx = railOrder.indexOf(li.dataset.step);
+      li.classList.remove("active","done");
+      // "done" reflects anything reached so far except the step currently
+      // on screen (which shows the active-brass indicator instead) — so
+      // navigating back doesn't make later, already-completed steps look
+      // unfinished, and the current step never fights active vs. done styling.
+      if (liIdx <= furthestIndex && li.dataset.step !== name) li.classList.add("done");
+      if (li.dataset.step === name) li.classList.add("active");
+      // Any previously-visited step is a free jump target; never lets the
+      // user jump ahead to a step they haven't reached yet.
+      const reachable = liIdx <= furthestIndex && li.dataset.step !== name;
+      li.classList.toggle("clickable", reachable);
+      li.setAttribute("tabindex", reachable ? "0" : "-1");
+    });
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  railItems.forEach(li=>{
+    function jump(){
+      if (li.classList.contains("clickable")) showStep(li.dataset.step);
+    }
+    li.addEventListener("click", jump);
+    li.addEventListener("keydown", (e)=>{
+      if ((e.key === "Enter" || e.key === " ") && li.classList.contains("clickable")){
+        e.preventDefault();
+        jump();
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-back]").forEach(btn=>{
+    btn.addEventListener("click", ()=> showStep(btn.dataset.back));
+  });
+
+  // ---------- STEP 1: JD ----------
+  const jdInput = document.getElementById("jdInput");
+  const toResumeBtn = document.getElementById("toResumeBtn");
+  jdInput.addEventListener("input", ()=>{
+    state.jdText = jdInput.value.trim();
+    toResumeBtn.disabled = state.jdText.length < 20;
+  });
+  toResumeBtn.addEventListener("click", ()=> showStep("resume"));
+
+  // ---------- STEP 2: Resume upload ----------
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const browseBtn = document.getElementById("browseBtn");
+  const fileChipWrap = document.getElementById("fileChipWrap");
+  const toMatchBtn = document.getElementById("toMatchBtn");
+
+  browseBtn.addEventListener("click", (e)=>{ e.stopPropagation(); fileInput.click(); });
+  dropzone.addEventListener("click", ()=> fileInput.click());
+  dropzone.addEventListener("keydown", (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); fileInput.click(); }});
+
+  ["dragenter","dragover"].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{ e.preventDefault(); dropzone.classList.add("drag"); });
+  });
+  ["dragleave","drop"].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{ e.preventDefault(); dropzone.classList.remove("drag"); });
+  });
+  dropzone.addEventListener("drop", (e)=>{
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener("change", ()=>{
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file){
+    if (file.type !== "application/pdf"){
+      alert("Please upload a PDF file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const base64 = reader.result.split(",")[1];
+      state.resumeBase64 = base64;
+      state.resumeFilename = file.name;
+      renderFileChip(file.name);
+      toMatchBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderFileChip(name){
+    fileChipWrap.innerHTML = "";
+    const chip = document.createElement("div");
+    chip.className = "file-chip";
+    chip.innerHTML = `<span>${escapeHtml(name)}</span>`;
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.setAttribute("aria-label","Remove file");
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", ()=>{
+      state.resumeBase64 = null;
+      state.resumeFilename = null;
+      fileChipWrap.innerHTML = "";
+      toMatchBtn.disabled = true;
+      fileInput.value = "";
+    });
+    chip.appendChild(removeBtn);
+    fileChipWrap.appendChild(chip);
+  }
+
+  toMatchBtn.addEventListener("click", ()=>{
+    showStep("match");
+    runAnalyze();
+  });
+
+  // ---------- STEP 3: Analyze match ----------
+  const matchLoading = document.getElementById("matchLoading");
+  const matchResultWrap = document.getElementById("matchResultWrap");
+  const matchErrorWrap = document.getElementById("matchErrorWrap");
+  const matchErrorMsg = document.getElementById("matchErrorMsg");
+  const retryMatchBtn = document.getElementById("retryMatchBtn");
+
+  // Shared: fetch + robust parse. Reading as text first (instead of res.json()
+  // directly) means an empty/truncated body produces a clear, diagnosable
+  // error instead of a generic "Unexpected end of JSON input" crash.
+  async function postJson(url, payload){
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const raw = await res.text();
+    if (!raw || !raw.trim()){
+      throw new Error(
+        `The server returned an empty response (HTTP ${res.status}). ` +
+        `This usually means the n8n workflow errored out, timed out, or isn't Active/Published. ` +
+        `Check the workflow's Executions tab in n8n for the failure.`
+      );
+    }
+    let data;
+    try{
+      data = JSON.parse(raw);
+    } catch(parseErr){
+      throw new Error(
+        `The server response wasn't valid JSON (HTTP ${res.status}). ` +
+        `First 200 chars: ${raw.slice(0,200)}`
+      );
+    }
+    if (!res.ok){
+      throw new Error(data.message || `Request failed with HTTP ${res.status}.`);
+    }
+    return data;
+  }
+
+  async function runAnalyze(){
+    matchLoading.style.display = "flex";
+    matchResultWrap.style.display = "none";
+    matchErrorWrap.style.display = "none";
+
+    try{
+      const data = await postJson(ANALYZE_URL, {
+        jdText: state.jdText,
+        resumeBase64: state.resumeBase64,
+        resumeFilename: state.resumeFilename
+      });
+      if (data.error || !data.matchScore){
+        throw new Error(data.message || "Unexpected response from the server.");
+      }
+      state.matchResult = data.matchScore;
+      renderMatchResult(data.matchScore);
+      matchLoading.style.display = "none";
+      matchResultWrap.style.display = "block";
+    } catch(err){
+      matchLoading.style.display = "none";
+      matchErrorWrap.style.display = "block";
+      matchErrorMsg.textContent = err.message || "The analysis couldn't complete. Try again.";
+      console.error("Analyze match failed:", err);
+    }
+  }
+  retryMatchBtn.addEventListener("click", runAnalyze);
+
+  function renderMatchResult(m){
+    // Animate gauge
+    const arc = document.getElementById("gaugeArc");
+    const circumference = 364.4; // ~ (3/4 of full circle at r=58, but we use full circle here simplified
+    const pct = Math.max(0, Math.min(100, m.percentage));
+    const offset = circumference - (circumference * pct / 100);
+    requestAnimationFrame(()=>{
+      arc.style.transition = "stroke-dashoffset 0.9s cubic-bezier(.2,.8,.2,1)";
+      arc.setAttribute("stroke-dashoffset", offset);
+    });
+    document.getElementById("gaugeNum").textContent = pct + "%";
+    document.getElementById("rationaleText").textContent = m.rationale || "";
+
+    const matchedWrap = document.getElementById("matchedKwList");
+    const missingWrap = document.getElementById("missingKwList");
+    matchedWrap.innerHTML = "";
+    missingWrap.innerHTML = "";
+    (m.matchedKeywords || []).forEach(k=>{
+      matchedWrap.appendChild(makeChip(k, "matched"));
+    });
+    (m.missingKeywords || []).forEach(k=>{
+      missingWrap.appendChild(makeChip(k, "missing"));
+    });
+    if ((m.matchedKeywords||[]).length===0){ matchedWrap.innerHTML = "<span style='color:var(--text-on-paper-dim);font-size:0.85rem;'>None identified.</span>"; }
+    if ((m.missingKeywords||[]).length===0){ missingWrap.innerHTML = "<span style='color:var(--text-on-paper-dim);font-size:0.85rem;'>None — great coverage.</span>"; }
+  }
+
+  function makeChip(text, cls){
+    const span = document.createElement("span");
+    span.className = "kw-chip " + cls;
+    span.textContent = text;
+    return span;
+  }
+
+  document.getElementById("happyBtn").addEventListener("click", ()=> showStep("finished"));
+  document.getElementById("restartBtn").addEventListener("click", ()=> location.reload());
+
+  document.getElementById("tailorBtn").addEventListener("click", runTailor);
+
+  // ---------- STEP 4/5: Tailor ----------
+  async function runTailor(){
+    showStep("tailorLoading");
+    try{
+      const data = await postJson(TAILOR_URL, {
+        jdText: state.jdText,
+        resumeBase64: state.resumeBase64,
+        resumeFilename: state.resumeFilename
+      });
+      if (data.error){
+        throw new Error(data.message || "Tailoring failed.");
+      }
+      state.tailored = data;
+      populateTailorForm(data);
+      showStep("tailor");
+    } catch(err){
+      console.error("Tailor resume failed:", err);
+      alert("Tailoring couldn't complete: " + (err.message || "unknown error") + "\n\nYou can try again from the match screen.");
+      showStep("match");
+    }
+  }
+
+  // ----- form population -----
+  const f_name = document.getElementById("f_name");
+  const f_title = document.getElementById("f_title");
+  const f_phone = document.getElementById("f_phone");
+  const f_email = document.getElementById("f_email");
+  const f_portfolio = document.getElementById("f_portfolio");
+  const f_summary = document.getElementById("f_summary");
+  const f_sendEmail = document.getElementById("f_sendEmail");
+  const skillsChipList = document.getElementById("skillsChipList");
+  const f_skillInput = document.getElementById("f_skillInput");
+  const experienceList = document.getElementById("experienceList");
+  const educationList = document.getElementById("educationList");
+  let skills = [];
+
+  function populateTailorForm(data){
+    // Name, phone, and email now come from the backend when it can find them
+    // on the source resume. Fall back to a filename-derived guess for name
+    // if the backend didn't find one. Only pre-fill on first population so
+    // we don't clobber edits if this runs again (e.g. user re-tailors).
+    if (!f_name.value){
+      f_name.value = data.name || (state.resumeFilename
+        ? state.resumeFilename.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").trim()
+        : "");
+    }
+    if (!f_phone.value && data.phone){
+      f_phone.value = data.phone;
+    }
+    if (!f_email.value && data.email){
+      f_email.value = data.email;
+    }
+    // Default the "send a copy to" field to the resume's own email, since
+    // that's usually the candidate emailing themselves a record — still
+    // editable if they want it sent somewhere else.
+    if (!f_sendEmail.value && (data.email || f_email.value)){
+      f_sendEmail.value = data.email || f_email.value;
+    }
+    if (!f_title.value && Array.isArray(data.experience) && data.experience[0] && data.experience[0].title){
+      f_title.value = data.experience[0].title;
+    }
+
+    f_summary.value = data.summary || "";
+    skills = Array.isArray(data.skills) ? data.skills.slice() : [];
+    renderSkillChips();
+
+    experienceList.innerHTML = "";
+    (data.experience || []).forEach(exp => addExperienceEntry(exp));
+
+    educationList.innerHTML = "";
+    (data.education || []).forEach(ed => addEducationEntry(ed));
+
+    document.getElementById("newScoreInline").textContent =
+      data.matchScore ? data.matchScore.percentage + "%" : "—";
+
+    renderNotes(data.tailoringNotes);
+  }
+
+  function renderSkillChips(){
+    skillsChipList.innerHTML = "";
+    skills.forEach((s, i)=>{
+      const chip = document.createElement("span");
+      chip.className = "kw-chip matched";
+      chip.style.display = "inline-flex";
+      chip.style.alignItems = "center";
+      chip.style.gap = "6px";
+      chip.innerHTML = `<span>${escapeHtml(s)}</span>`;
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "✕";
+      rm.style.background = "none";
+      rm.style.border = "none";
+      rm.style.fontSize = "0.7rem";
+      rm.setAttribute("aria-label", "Remove " + s);
+      rm.addEventListener("click", ()=>{ skills.splice(i,1); renderSkillChips(); });
+      chip.appendChild(rm);
+      skillsChipList.appendChild(chip);
+    });
+  }
+  document.getElementById("addSkillBtn").addEventListener("click", addSkillFromInput);
+  f_skillInput.addEventListener("keydown", (e)=>{
+    if (e.key === "Enter"){ e.preventDefault(); addSkillFromInput(); }
+  });
+  function addSkillFromInput(){
+    const v = f_skillInput.value.trim();
+    if (v){ skills.push(v); f_skillInput.value = ""; renderSkillChips(); }
+  }
+
+  function addExperienceEntry(exp){
+    exp = exp || {title:"",company:"",dates:"",bullets:[]};
+    const card = document.createElement("div");
+    card.className = "entry-card";
+    card.innerHTML = `
+      <button type="button" class="entry-remove">Remove</button>
+      <div class="entry-grid">
+        <div class="field"><label>Job title</label><input type="text" class="exp-title" value="${escapeAttr(exp.title||"")}"></div>
+        <div class="field"><label>Company</label><input type="text" class="exp-company" value="${escapeAttr(exp.company||"")}"></div>
+      </div>
+      <div class="entry-grid">
+        <div class="field"><label>Location</label><input type="text" class="exp-location" placeholder="City, State" value="${escapeAttr(exp.location||"")}"></div>
+        <div class="field"><label>Dates</label><input type="text" class="exp-dates" value="${escapeAttr(exp.dates||"")}"></div>
+      </div>
+      <div class="field">
+        <label>Bullet points (one per line)</label>
+        <textarea class="exp-bullets" style="min-height:100px;">${escapeHtml((exp.bullets||[]).join("\n"))}</textarea>
+      </div>
+    `;
+    card.querySelector(".entry-remove").addEventListener("click", ()=> card.remove());
+    experienceList.appendChild(card);
+  }
+  document.getElementById("addExperienceBtn").addEventListener("click", ()=> addExperienceEntry());
+
+  function addEducationEntry(ed){
+    ed = ed || {degree:"",school:"",dates:""};
+    const card = document.createElement("div");
+    card.className = "entry-card";
+    card.innerHTML = `
+      <button type="button" class="entry-remove">Remove</button>
+      <div class="entry-grid">
+        <div class="field"><label>Degree</label><input type="text" class="edu-degree" value="${escapeAttr(ed.degree||"")}"></div>
+        <div class="field"><label>School</label><input type="text" class="edu-school" value="${escapeAttr(ed.school||"")}"></div>
+      </div>
+      <div class="entry-grid">
+        <div class="field"><label>Location</label><input type="text" class="edu-location" placeholder="City, State" value="${escapeAttr(ed.location||"")}"></div>
+        <div class="field"><label>Dates</label><input type="text" class="edu-dates" value="${escapeAttr(ed.dates||"")}"></div>
+      </div>
+    `;
+    card.querySelector(".entry-remove").addEventListener("click", ()=> card.remove());
+    educationList.appendChild(card);
+  }
+  document.getElementById("addEducationBtn").addEventListener("click", ()=> addEducationEntry());
+
+  function renderNotes(notes){
+    const panel = document.getElementById("notesPanel");
+    const content = document.getElementById("notesContent");
+    if (!notes){ panel.style.display="none"; return; }
+    panel.style.display = "block";
+    content.innerHTML = "";
+
+    function tagRow(label, arr){
+      if (!arr || !arr.length) return "";
+      return `<dt>${label}</dt><dd><div class="tag-row">${arr.map(a=>`<span class="tag">${escapeHtml(a)}</span>`).join("")}</div></dd>`;
+    }
+
+    let html = "";
+    html += tagRow("Keywords injected", notes.keywordsInjected);
+    html += tagRow("Sections reordered", notes.sectionsReordered);
+    if (notes.addedSkills && notes.addedSkills.length){
+      html += `<dt>Skills added</dt><dd>`;
+      notes.addedSkills.forEach(a=>{
+        html += `<div style="margin-bottom:6px;"><strong>${escapeHtml(a.skill)}</strong> — ${escapeHtml(a.justification||"")}</div>`;
+      });
+      html += `</dd>`;
+    }
+    html += tagRow("Remaining gaps to address yourself", notes.remainingGaps);
+    content.innerHTML = html || "<dd>No additional notes.</dd>";
+  }
+
+  // ---------- Collect current form state ----------
+  function collectResumeData(){
+    const experience = Array.from(experienceList.children).map(card=>({
+      title: card.querySelector(".exp-title").value.trim(),
+      company: card.querySelector(".exp-company").value.trim(),
+      location: card.querySelector(".exp-location").value.trim(),
+      dates: card.querySelector(".exp-dates").value.trim(),
+      bullets: card.querySelector(".exp-bullets").value.split("\n").map(s=>s.trim()).filter(Boolean)
+    }));
+    const education = Array.from(educationList.children).map(card=>({
+      degree: card.querySelector(".edu-degree").value.trim(),
+      school: card.querySelector(".edu-school").value.trim(),
+      location: card.querySelector(".edu-location").value.trim(),
+      dates: card.querySelector(".edu-dates").value.trim()
+    }));
+    return {
+      mode: state.resumeMode,
+      bannerFinalImage: state.bannerFinalImage,
+      name: f_name.value.trim(),
+      title: f_title.value.trim(),
+      phone: f_phone.value.trim(),
+      email: f_email.value.trim(),
+      portfolio: f_portfolio.value.trim(),
+      summary: f_summary.value.trim(),
+      skills: skills.slice(),
+      experience,
+      education
+    };
+  }
+
+  // ---------- Shared resume-HTML builder (used by both Preview and PDF export,
+  // so what the user previews is guaranteed to match what gets downloaded) ----------
+  function buildResumeHtml(data){
+    let html = "";
+
+    if (data.mode === "consultancy" && data.bannerFinalImage){
+      html += `<div class="pt-consultancy-banner"><img src="${data.bannerFinalImage.dataUrl}" alt="Company letterhead banner"></div>`;
+    }
+
+    const displayName = data.name || (state.resumeFilename ? state.resumeFilename.replace(/\.pdf$/i,"") : "Resume");
+    html += `<h2>${escapeHtml(displayName)}</h2>`;
+    if (data.title){
+      html += `<div class="pt-tagline">${escapeHtml(data.title)}</div>`;
+    }
+    const contactParts = [
+      data.phone ? "Mobile: " + data.phone : null,
+      data.email ? "Email: " + data.email : null,
+      data.portfolio || null
+    ].filter(Boolean);
+    if (contactParts.length){
+      html += `<div class="pt-contact">${contactParts.map(escapeHtml).join(" &nbsp;·&nbsp; ")}</div>`;
+    }
+    html += `<div class="pt-header-rule"></div>`;
+    if (data.summary){
+      html += `<div class="pt-section"><div class="pt-label">Summary</div><div>${escapeHtml(data.summary)}</div></div>`;
+    }
+    if (data.skills.length){
+      html += `<div class="pt-section"><div class="pt-label">Skills</div><div>${escapeHtml(data.skills.join(" · "))}</div></div>`;
+    }
+    if (data.experience.length){
+      html += `<div class="pt-section"><div class="pt-label">Experience</div>`;
+      data.experience.forEach(exp=>{
+        const subLine = [exp.company, exp.location].filter(Boolean).join(", ");
+        html += `<div class="pt-entry"><div class="pt-entry-head"><span>${escapeHtml(exp.title||"")}</span><span>${escapeHtml(exp.dates||"")}</span></div>`;
+        if (subLine) html += `<div class="pt-entry-sub">${escapeHtml(subLine)}</div>`;
+        if (exp.bullets.length){
+          html += `<ul>` + exp.bullets.map(b=>`<li>${escapeHtml(b)}</li>`).join("") + `</ul>`;
+        }
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    if (data.education.length){
+      html += `<div class="pt-section"><div class="pt-label">Education</div>`;
+      data.education.forEach(ed=>{
+        const subLine = [ed.school, ed.location].filter(Boolean).join(", ");
+        html += `<div class="pt-entry"><div class="pt-entry-head"><span>${escapeHtml(ed.degree||"")}</span><span>${escapeHtml(ed.dates||"")}</span></div>`;
+        if (subLine) html += `<div class="pt-entry-sub">${escapeHtml(subLine)}</div>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    return html;
+  }
+
+  // ---------- PDF export: drawn directly with jsPDF's text/line API.
+  // No DOM screenshotting, no html2canvas, no hidden/visible element tricks —
+  // this just places text and rules on the page programmatically, the same
+  // reliable way the .docx export already works. ----------
+  // Builds the PDF document object without saving/downloading it, so both
+  // the direct download and the "email me a copy" feature share one
+  // source of truth for the actual resume content and layout.
+  function buildPdfDoc(){
+    const data = collectResumeData();
+
+    if (!window.jspdf || !window.jspdf.jsPDF){
+      throw new Error("PDF library failed to load (check your internet connection) — try Download as Word instead, or reload the page.");
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+
+    const PAGE_W = doc.internal.pageSize.getWidth();
+    const PAGE_H = doc.internal.pageSize.getHeight();
+    const MARGIN = 50;
+    const CONTENT_W = PAGE_W - MARGIN * 2;
+    let y = MARGIN;
+
+    const INK = [16, 21, 31];
+    const BRASS = hexToRgb(state.headerColor);
+    const MUTED = [91, 96, 112];
+    const LINE = [215, 216, 210];
+    const FONT = FONT_OPTIONS[state.fontIndex].jspdfFont;
+
+    function ensureSpace(needed){
+      if (y + needed > PAGE_H - MARGIN){
+        doc.addPage();
+        y = MARGIN;
+      }
+    }
+
+    function setColor(rgb){ doc.setTextColor(rgb[0], rgb[1], rgb[2]); }
+    function setDrawColor(rgb){ doc.setDrawColor(rgb[0], rgb[1], rgb[2]); }
+
+    function paragraph(text, {size=10.5, style="normal", color=INK, lineHeight=14, spacingAfter=10} = {}){
+      if (!text) return;
+      doc.setFont(FONT, style);
+      doc.setFontSize(size);
+      setColor(color);
+      const lines = doc.splitTextToSize(text, CONTENT_W);
+      lines.forEach(line=>{
+        ensureSpace(lineHeight);
+        doc.text(line, MARGIN, y);
+        y += lineHeight;
+      });
+      y += spacingAfter;
+    }
+
+    function sectionHeading(text){
+      ensureSpace(34);
+      doc.setFont(FONT, "bold");
+      doc.setFontSize(11.5);
+      setColor(BRASS);
+      doc.text(text.toUpperCase(), MARGIN, y);
+      y += 6;
+      setDrawColor(LINE);
+      doc.setLineWidth(1);
+      doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
+      y += 16;
+    }
+
+    function entryHeadRow(leftText, rightText){
+      ensureSpace(18);
+      doc.setFont(FONT, "bold");
+      doc.setFontSize(12.5);
+      setColor(INK);
+      doc.text(leftText || "", MARGIN, y);
+      if (rightText){
+        doc.setFont(FONT, "italic");
+        doc.setFontSize(10);
+        setColor(MUTED);
+        const w = doc.getTextWidth(rightText);
+        doc.text(rightText, MARGIN + CONTENT_W - w, y);
+      }
+      y += 16;
+    }
+
+    function subLine(text){
+      if (!text) return;
+      ensureSpace(14);
+      doc.setFont(FONT, "normal");
+      doc.setFontSize(10.5);
+      setColor(MUTED);
+      doc.text(text, MARGIN, y);
+      y += 16;
+    }
+
+    function bulletList(items){
+      items.forEach(item=>{
+        doc.setFont(FONT, "normal");
+        doc.setFontSize(10.5);
+        setColor(INK);
+        const wrapped = doc.splitTextToSize(item, CONTENT_W - 16);
+        wrapped.forEach((line, i)=>{
+          ensureSpace(14);
+          doc.text((i === 0 ? "•  " : "   ") + line, MARGIN, y);
+          y += 14;
+        });
+      });
+      y += 6;
+    }
+
+    // ---- Consultancy header banner: one flattened image, placed full-width
+    // above the candidate's own name/tagline/contact block ----
+    if (data.mode === "consultancy" && data.bannerFinalImage){
+      try{
+        const fmt = data.bannerFinalImage.dataUrl.includes("image/png") ? "PNG" : "JPEG";
+        // Full-bleed: draw at x=0 spanning the physical page width, not the
+        // inset CONTENT_W, so the banner sits flush against the page edges
+        // instead of floating inside the MARGIN.
+        const bannerDisplayH = PAGE_W / data.bannerFinalImage.aspectRatio;
+        doc.addImage(data.bannerFinalImage.dataUrl, fmt, 0, 0, PAGE_W, bannerDisplayH, undefined, "FAST");
+        y = bannerDisplayH + 10;
+        setDrawColor(INK);
+        doc.setLineWidth(1.2);
+        doc.line(0, y, PAGE_W, y);
+        y += 20;
+      } catch(e){
+        console.error("Failed to draw banner in PDF:", e);
+        y = MARGIN;
+      }
+    }
+
+    // ---- Name / tagline / contact, centered, with a rule underneath ----
+    const name = data.name || (state.resumeFilename ? state.resumeFilename.replace(/\.pdf$/i,"") : "Resume");
+    const pageCenter = PAGE_W / 2;
+    doc.setFont(FONT, "bold");
+    doc.setFontSize(24);
+    setColor(INK);
+    doc.text(name, pageCenter, y, { align: "center" });
+    y += 20;
+
+    if (data.title){
+      doc.setFont(FONT, "bold");
+      doc.setFontSize(12.5);
+      setColor(BRASS);
+      doc.text(data.title, pageCenter, y, { align: "center" });
+      y += 16;
+    }
+
+    const contactParts = [
+      data.phone ? "Mobile: " + data.phone : null,
+      data.email ? "Email: " + data.email : null,
+      data.portfolio || null
+    ].filter(Boolean);
+    if (contactParts.length){
+      doc.setFont(FONT, "normal");
+      doc.setFontSize(10);
+      setColor(MUTED);
+      doc.text(contactParts.join("   ·   "), pageCenter, y, { align: "center" });
+      y += 14;
+    }
+
+    y += 6;
+    setDrawColor(INK);
+    doc.setLineWidth(1.6);
+    doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
+    y += 22;
+
+    if (data.summary){
+      sectionHeading("Summary");
+      paragraph(data.summary);
+    }
+    if (data.skills.length){
+      sectionHeading("Skills");
+      paragraph(data.skills.join("  ·  "));
+    }
+    if (data.experience.length){
+      sectionHeading("Experience");
+      data.experience.forEach(exp=>{
+        entryHeadRow(exp.title || "", exp.dates || "");
+        subLine([exp.company, exp.location].filter(Boolean).join(", "));
+        if (exp.bullets && exp.bullets.length) bulletList(exp.bullets);
+        y += 6;
+      });
+    }
+    if (data.education.length){
+      sectionHeading("Education");
+      data.education.forEach(ed=>{
+        entryHeadRow(ed.degree || "", ed.dates || "");
+        subLine([ed.school, ed.location].filter(Boolean).join(", "));
+        y += 4;
+      });
+    }
+
+    return doc;
+  }
+
+  function generatePdf(){
+    let doc;
+    try{
+      doc = buildPdfDoc();
+    } catch(err){
+      alert(err.message);
+      return;
+    }
+    doc.save((state.resumeFilename||"resume").replace(/\.pdf$/i,"") + "-tailored.pdf");
+  }
+
+  // Returns the PDF as a base64 string (no data: URI prefix) for emailing.
+  function getPdfBase64(){
+    const doc = buildPdfDoc();
+    const dataUri = doc.output("datauristring");
+    return dataUri.split(",")[1];
+  }
+
+  async function generateDocx(){
+    const data = collectResumeData();
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, ImageRun, AlignmentType } = docx;
+
+    const accentHex = state.headerColor.replace("#","").toUpperCase();
+    const docxFontName = FONT_OPTIONS[state.fontIndex].docxFont;
+
+    function sectionHeading(text){
+      return new Paragraph({
+        children:[ new TextRun({ text, bold:true, size:22, color:accentHex, allCaps:true, characterSpacing:20 }) ],
+        spacing:{ before:280, after:140 },
+        border:{ bottom:{ style: BorderStyle.SINGLE, size:6, color:"D7D8D2", space:4 } }
+      });
+    }
+
+    // Converts a data: URL (from FileReader) into the raw bytes docx.js's
+    // ImageRun needs — works in-browser without any extra dependency.
+    function dataUrlToUint8Array(dataUrl){
+      const base64 = dataUrl.split(",")[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+    function imageTypeFromMime(mimeType){
+      if (mimeType.includes("png")) return "png";
+      if (mimeType.includes("gif")) return "gif";
+      if (mimeType.includes("bmp")) return "bmp";
+      return "jpg";
+    }
+
+    const children = [];
+
+    // ---- Consultancy header banner: one flattened image spanning the full
+    // page width, placed above the candidate's own header, with a rule beneath ----
+    if (data.mode === "consultancy" && data.bannerFinalImage){
+      // Word content width is roughly 6.5in = 9360 twips at default margins;
+      // pick a docx image width that reads well on the page and derive the
+      // height from the banner's own aspect ratio so it isn't distorted.
+      const DOCX_BANNER_W_PX = 620;
+      const bannerHpx = Math.round(DOCX_BANNER_W_PX / data.bannerFinalImage.aspectRatio);
+      const mimeMatch = data.bannerFinalImage.dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+      const bannerImgType = imageTypeFromMime(mimeMatch ? mimeMatch[1] : "image/png");
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children:[ new ImageRun({
+          data: dataUrlToUint8Array(data.bannerFinalImage.dataUrl),
+          transformation: { width: DOCX_BANNER_W_PX, height: bannerHpx },
+          type: bannerImgType
+        }) ],
+        spacing:{ after:80 }
+      }));
+      children.push(new Paragraph({
+        text: "",
+        spacing:{ after:120 },
+        border:{ bottom:{ style: BorderStyle.SINGLE, size:14, color:"10151F", space:6 } }
+      }));
+    }
+
+    // Name (bold, large), centered
+    const displayName = data.name || (state.resumeFilename ? state.resumeFilename.replace(/\.pdf$/i,"") : "Resume");
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children:[ new TextRun({ text: displayName, bold:true, size:44, color:"10151F" }) ],
+      spacing:{ after: data.title ? 20 : 60 }
+    }));
+
+    // Tagline (professional title), centered
+    if (data.title){
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children:[ new TextRun({ text: data.title, bold:true, size:24, color:accentHex }) ],
+        spacing:{ after:40 }
+      }));
+    }
+
+    // Contact line, centered, with the rule underneath it (or under the
+    // name/tagline if no contact info was entered)
+    const contactParts = [
+      data.phone ? "Mobile: " + data.phone : null,
+      data.email ? "Email: " + data.email : null,
+      data.portfolio || null
+    ].filter(Boolean);
+    if (contactParts.length){
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children:[ new TextRun({ text: contactParts.join("   ·   "), size:20, color:"5B6070" }) ],
+        spacing:{ after:120 },
+        border:{ bottom:{ style: BorderStyle.SINGLE, size:16, color:"10151F", space:8 } }
+      }));
+    } else {
+      children.push(new Paragraph({
+        text: "",
+        spacing:{ after:40 },
+        border:{ bottom:{ style: BorderStyle.SINGLE, size:16, color:"10151F", space:8 } }
+      }));
+    }
+
+    if (data.summary){
+      children.push(sectionHeading("Summary"));
+      children.push(new Paragraph({ text: data.summary, spacing:{after:80} }));
+    }
+    if (data.skills.length){
+      children.push(sectionHeading("Skills"));
+      children.push(new Paragraph({ text: data.skills.join(" · "), spacing:{after:80} }));
+    }
+    if (data.experience.length){
+      children.push(sectionHeading("Experience"));
+      data.experience.forEach(exp=>{
+        children.push(new Paragraph({
+          children:[ new TextRun({ text: exp.title || "", bold:true, size:24, color:"10151F" }) ],
+          spacing:{before:160, after:20}
+        }));
+        const subLine = [exp.company, exp.location].filter(Boolean).join(", ");
+        if (subLine) children.push(new Paragraph({
+          children:[ new TextRun({ text: subLine, size:21, color:"5B6070" }) ],
+          spacing:{after:20}
+        }));
+        if (exp.dates) children.push(new Paragraph({
+          children:[ new TextRun({ text: exp.dates, italics:true, size:20, color:"5B6070" }) ],
+          spacing:{after:60}
+        }));
+        exp.bullets.forEach(b=>{
+          children.push(new Paragraph({ text: "•  " + b, spacing:{after:40} }));
+        });
+      });
+    }
+    if (data.education.length){
+      children.push(sectionHeading("Education"));
+      data.education.forEach(ed=>{
+        children.push(new Paragraph({
+          children:[ new TextRun({ text: ed.degree || "", bold:true, size:24, color:"10151F" }) ],
+          spacing:{before:120, after:20}
+        }));
+        const subLine = [ed.school, ed.location].filter(Boolean).join(", ");
+        if (subLine) children.push(new Paragraph({
+          children:[ new TextRun({ text: subLine, size:21, color:"5B6070" }) ],
+          spacing:{after:20}
+        }));
+        if (ed.dates) children.push(new Paragraph({
+          children:[ new TextRun({ text: ed.dates, italics:true, size:20, color:"5B6070" }) ],
+          spacing:{after:60}
+        }));
+      });
+    }
+
+    const doc = new Document({
+      styles: {
+        default: {
+          document: { run: { font: docxFontName } }
+        }
+      },
+      sections:[{ children }]
+    });
+    const blob = await Packer.toBlob(doc);
+    triggerDownload(blob, (state.resumeFilename||"resume").replace(/\.pdf$/i,"") + "-tailored.docx");
+  }
+
+  document.getElementById("downloadDocxBtn").addEventListener("click", generateDocx);
+  document.getElementById("downloadPdfBtn").addEventListener("click", generatePdf);
+  document.getElementById("modalDownloadDocxBtn").addEventListener("click", generateDocx);
+  document.getElementById("modalDownloadPdfBtn").addEventListener("click", generatePdf);
+
+  // ---------- Save this application (emails a PDF copy + JD to the user) ----------
+  const emailCopyBtn = document.getElementById("emailCopyBtn");
+  const trackerStatus = document.getElementById("trackerStatus");
+
+  function isValidEmail(v){
+    // Deliberately simple — just enough to catch obvious typos, not a full RFC check.
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  }
+
+  emailCopyBtn.addEventListener("click", async ()=>{
+    const toEmail = f_sendEmail.value.trim();
+    trackerStatus.className = "tracker-status";
+    trackerStatus.textContent = "";
+
+    if (!isValidEmail(toEmail)){
+      trackerStatus.className = "tracker-status error";
+      trackerStatus.textContent = "Enter a valid email address first.";
+      return;
+    }
+
+    emailCopyBtn.disabled = true;
+    trackerStatus.className = "tracker-status sending";
+    trackerStatus.textContent = "Generating your resume and sending…";
+
+    try{
+      const pdfBase64 = getPdfBase64();
+      const data = collectResumeData();
+      const filename = (state.resumeFilename||"resume").replace(/\.pdf$/i,"") + "-tailored.pdf";
+
+      const result = await postJson(EMAIL_URL, {
+        toEmail: toEmail,
+        jdText: state.jdText,
+        candidateName: data.name || "",
+        pdfBase64: pdfBase64,
+        pdfFilename: filename
+      });
+
+      if (result.error){
+        throw new Error(result.message || "Couldn't send the email.");
+      }
+
+      trackerStatus.className = "tracker-status ok";
+      trackerStatus.textContent = "Sent — check " + toEmail + " for your resume and this job description.";
+    } catch(err){
+      console.error("Email send failed:", err);
+      trackerStatus.className = "tracker-status error";
+      trackerStatus.textContent = err.message || "Something went wrong sending the email. Try again.";
+    } finally {
+      emailCopyBtn.disabled = false;
+    }
+  });
+
+  // ---------- Preview modal ----------
+  const previewOverlay = document.getElementById("previewOverlay");
+  const previewSurface = document.getElementById("previewSurface");
+
+  document.getElementById("previewBtn").addEventListener("click", ()=>{
+    const data = collectResumeData();
+    previewSurface.innerHTML = buildResumeHtml(data);
+    previewSurface.style.setProperty("--header-color", state.headerColor);
+    previewSurface.style.setProperty("--resume-font", FONT_OPTIONS[state.fontIndex].cssFamily);
+    previewOverlay.classList.add("open");
+  });
+  document.getElementById("closePreviewBtn").addEventListener("click", closePreview);
+  previewOverlay.addEventListener("click", (e)=>{
+    if (e.target === previewOverlay) closePreview();
+  });
+  document.addEventListener("keydown", (e)=>{
+    if (e.key === "Escape" && previewOverlay.classList.contains("open")) closePreview();
+  });
+  function closePreview(){ previewOverlay.classList.remove("open"); }
+
+  function triggerDownload(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- utils ----------
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  }
+  function escapeAttr(str){ return escapeHtml(str); }
+
+})();
+</script>
+</body>
+</html>
