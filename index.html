@@ -780,6 +780,18 @@
           <div id="educationList"></div>
           <button class="add-entry-btn" id="addEducationBtn" type="button">+ Add education entry</button>
         </div>
+
+        <div class="field">
+          <label>Certifications <span style="font-weight:400; color:var(--text-on-paper-dim);">(optional)</span></label>
+          <div id="certificationsList"></div>
+          <button class="add-entry-btn" id="addCertificationBtn" type="button">+ Add certification</button>
+        </div>
+
+        <div class="field">
+          <label>Achievements <span style="font-weight:400; color:var(--text-on-paper-dim);">(optional)</span></label>
+          <div id="achievementsList"></div>
+          <button class="add-entry-btn" id="addAchievementBtn" type="button">+ Add achievement</button>
+        </div>
       </div>
 
       <div class="notes-panel" id="notesPanel" style="display:none;">
@@ -1652,6 +1664,8 @@
   const f_skillInput = document.getElementById("f_skillInput");
   const experienceList = document.getElementById("experienceList");
   const educationList = document.getElementById("educationList");
+  const certificationsList = document.getElementById("certificationsList");
+  const achievementsList = document.getElementById("achievementsList");
   let skills = [];
 
   function populateTailorForm(data){
@@ -1689,6 +1703,12 @@
 
     educationList.innerHTML = "";
     (data.education || []).forEach(ed => addEducationEntry(ed));
+
+    certificationsList.innerHTML = "";
+    (data.certifications || []).forEach(c => addCertificationEntry(c));
+
+    achievementsList.innerHTML = "";
+    (data.achievements || []).forEach(a => addAchievementEntry(a));
 
     document.getElementById("newScoreInline").textContent =
       data.matchScore ? data.matchScore.percentage + "%" : "—";
@@ -1770,6 +1790,40 @@
   }
   document.getElementById("addEducationBtn").addEventListener("click", ()=> addEducationEntry());
 
+  function addCertificationEntry(cert){
+    cert = cert || {title:"",issuer:"",date:""};
+    const card = document.createElement("div");
+    card.className = "entry-card";
+    card.innerHTML = `
+      <button type="button" class="entry-remove">Remove</button>
+      <div class="entry-grid">
+        <div class="field"><label>Certification / Achievement</label><input type="text" class="cert-title" placeholder="e.g. AWS Certified Solutions Architect" value="${escapeAttr(cert.title||"")}"></div>
+        <div class="field"><label>Issuer / Organization</label><input type="text" class="cert-issuer" placeholder="Optional" value="${escapeAttr(cert.issuer||"")}"></div>
+      </div>
+      <div class="field"><label>Date</label><input type="text" class="cert-date" placeholder="Optional, e.g. 2023" value="${escapeAttr(cert.date||"")}"></div>
+    `;
+    card.querySelector(".entry-remove").addEventListener("click", ()=> card.remove());
+    certificationsList.appendChild(card);
+  }
+  document.getElementById("addCertificationBtn").addEventListener("click", ()=> addCertificationEntry());
+
+  function addAchievementEntry(ach){
+    ach = ach || {title:"",context:"",date:""};
+    const card = document.createElement("div");
+    card.className = "entry-card";
+    card.innerHTML = `
+      <button type="button" class="entry-remove">Remove</button>
+      <div class="entry-grid">
+        <div class="field"><label>Achievement</label><input type="text" class="ach-title" placeholder="e.g. Increased regional sales by 30%" value="${escapeAttr(ach.title||"")}"></div>
+        <div class="field"><label>Awarded by / Context</label><input type="text" class="ach-context" placeholder="Optional" value="${escapeAttr(ach.context||"")}"></div>
+      </div>
+      <div class="field"><label>Date</label><input type="text" class="ach-date" placeholder="Optional, e.g. 2023" value="${escapeAttr(ach.date||"")}"></div>
+    `;
+    card.querySelector(".entry-remove").addEventListener("click", ()=> card.remove());
+    achievementsList.appendChild(card);
+  }
+  document.getElementById("addAchievementBtn").addEventListener("click", ()=> addAchievementEntry());
+
   function renderNotes(notes){
     const panel = document.getElementById("notesPanel");
     const content = document.getElementById("notesContent");
@@ -1811,6 +1865,16 @@
       location: card.querySelector(".edu-location").value.trim(),
       dates: card.querySelector(".edu-dates").value.trim()
     }));
+    const certifications = Array.from(certificationsList.children).map(card=>({
+      title: card.querySelector(".cert-title").value.trim(),
+      issuer: card.querySelector(".cert-issuer").value.trim(),
+      date: card.querySelector(".cert-date").value.trim()
+    })).filter(c => c.title || c.issuer || c.date);
+    const achievements = Array.from(achievementsList.children).map(card=>({
+      title: card.querySelector(".ach-title").value.trim(),
+      context: card.querySelector(".ach-context").value.trim(),
+      date: card.querySelector(".ach-date").value.trim()
+    })).filter(a => a.title || a.context || a.date);
     return {
       mode: state.resumeMode,
       bannerFinalImage: state.bannerFinalImage,
@@ -1822,7 +1886,9 @@
       summary: f_summary.value.trim(),
       skills: skills.slice(),
       experience,
-      education
+      education,
+      certifications,
+      achievements
     };
   }
 
@@ -1874,6 +1940,24 @@
         const subLine = [ed.school, ed.location].filter(Boolean).join(", ");
         html += `<div class="pt-entry"><div class="pt-entry-head"><span>${escapeHtml(ed.degree||"")}</span><span>${escapeHtml(ed.dates||"")}</span></div>`;
         if (subLine) html += `<div class="pt-entry-sub">${escapeHtml(subLine)}</div>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    if (data.certifications && data.certifications.length){
+      html += `<div class="pt-section"><div class="pt-label">Certifications</div>`;
+      data.certifications.forEach(c=>{
+        html += `<div class="pt-entry"><div class="pt-entry-head"><span>${escapeHtml(c.title||"")}</span><span>${escapeHtml(c.date||"")}</span></div>`;
+        if (c.issuer) html += `<div class="pt-entry-sub">${escapeHtml(c.issuer)}</div>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    if (data.achievements && data.achievements.length){
+      html += `<div class="pt-section"><div class="pt-label">Achievements</div>`;
+      data.achievements.forEach(a=>{
+        html += `<div class="pt-entry"><div class="pt-entry-head"><span>${escapeHtml(a.title||"")}</span><span>${escapeHtml(a.date||"")}</span></div>`;
+        if (a.context) html += `<div class="pt-entry-sub">${escapeHtml(a.context)}</div>`;
         html += `</div>`;
       });
       html += `</div>`;
@@ -2069,6 +2153,22 @@
         y += 4;
       });
     }
+    if (data.certifications && data.certifications.length){
+      sectionHeading("Certifications");
+      data.certifications.forEach(c=>{
+        entryHeadRow(c.title || "", c.date || "");
+        if (c.issuer) subLine(c.issuer);
+        y += 4;
+      });
+    }
+    if (data.achievements && data.achievements.length){
+      sectionHeading("Achievements");
+      data.achievements.forEach(a=>{
+        entryHeadRow(a.title || "", a.date || "");
+        if (a.context) subLine(a.context);
+        y += 4;
+      });
+    }
 
     return doc;
   }
@@ -2240,6 +2340,40 @@
         }));
         if (ed.dates) children.push(new Paragraph({
           children:[ new TextRun({ text: ed.dates, italics:true, size:20, color:"5B6070" }) ],
+          spacing:{after:60}
+        }));
+      });
+    }
+    if (data.certifications && data.certifications.length){
+      children.push(sectionHeading("Certifications"));
+      data.certifications.forEach(c=>{
+        children.push(new Paragraph({
+          children:[ new TextRun({ text: c.title || "", bold:true, size:24, color:"10151F" }) ],
+          spacing:{before:120, after:20}
+        }));
+        if (c.issuer) children.push(new Paragraph({
+          children:[ new TextRun({ text: c.issuer, size:21, color:"5B6070" }) ],
+          spacing:{after:20}
+        }));
+        if (c.date) children.push(new Paragraph({
+          children:[ new TextRun({ text: c.date, italics:true, size:20, color:"5B6070" }) ],
+          spacing:{after:60}
+        }));
+      });
+    }
+    if (data.achievements && data.achievements.length){
+      children.push(sectionHeading("Achievements"));
+      data.achievements.forEach(a=>{
+        children.push(new Paragraph({
+          children:[ new TextRun({ text: a.title || "", bold:true, size:24, color:"10151F" }) ],
+          spacing:{before:120, after:20}
+        }));
+        if (a.context) children.push(new Paragraph({
+          children:[ new TextRun({ text: a.context, size:21, color:"5B6070" }) ],
+          spacing:{after:20}
+        }));
+        if (a.date) children.push(new Paragraph({
+          children:[ new TextRun({ text: a.date, italics:true, size:20, color:"5B6070" }) ],
           spacing:{after:60}
         }));
       });
