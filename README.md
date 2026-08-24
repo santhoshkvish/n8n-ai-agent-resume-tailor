@@ -2,7 +2,7 @@
 
 A free, self-hosted web app that scores your resume against a job description, AI-tailors it to match, and exports a polished PDF or Word doc — all without a paid backend.
 
-**Live app:** _add your GitHub Pages URL here after enabling Pages_
+**Live app:** https://santhoshkvish.github.io/n8n-ai-agent-resume-tailor/
 
 ## How it works
 
@@ -16,7 +16,7 @@ There's also a **Consultancy mode** that adds a custom letterhead banner designe
 
 ## Stack
 
-- **Frontend:** a single self-contained `index.html` (no build step, no framework) — see [`index.html`](./index.html). Uses [jsPDF](https://github.com/parallax/jsPDF) for PDF export and [docx.js](https://github.com/dolanmiu/docx) for Word export, both loaded from cdnjs.
+- **Frontend:** a single self-contained `index.html` (no build step, no framework) — see [`index.html`](./index.html). Uses [jsPDF](https://github.com/parallax/jsPDF) (from cdnjs) and [docx.js](https://github.com/dolanmiu/docx) (from jsDelivr, since cdnjs doesn't mirror the `docx` package) for PDF/Word export.
 - **Backend:** three [n8n](https://n8n.io) webhook workflows (JSON exports in [`/n8n`](./n8n)) using [Google Gemini](https://aistudio.google.com/) (free tier via Google AI Studio) as the LLM.
 - **Hosting:** GitHub Pages (frontend) + n8n Cloud or self-hosted n8n (backend).
 
@@ -38,6 +38,11 @@ docs/
 1. Import the three JSON files in [`/n8n`](./n8n) into your n8n instance — see [`docs/n8n-setup.md`](./docs/n8n-setup.md).
 2. Update the three webhook URL constants near the top of `index.html`'s `<script>` block (`ANALYZE_URL`, `TAILOR_URL`, `EMAIL_URL`) to point at your own n8n instance.
 3. Deploy `index.html` to GitHub Pages — see [`docs/deployment.md`](./docs/deployment.md).
+
+## Known gotchas
+
+- **cdnjs doesn't mirror the `docx` npm package.** Only `docxtemplater` and `mammoth` show up there under "docx" — the actual `dolanmiu/docx` library isn't hosted on cdnjs at all, so a script tag pointing at `cdnjs.cloudflare.com/ajax/libs/docx/...` will 404 silently (Word export will fail with `docx is not defined` and no other symptom). Use jsDelivr (`cdn.jsdelivr.net/npm/docx@<version>/build/index.umd.min.js`) instead — that's what `index.html` uses now.
+- **A "full width" image in docx.js still sits inside Word's default 1-inch page margins.** There's no way to bleed an image past a section's own margins. A true edge-to-edge banner needs its own zero-margin page section, followed by a `continuous` section break that restores normal margins for the rest of the content — see the two-section structure in `generateDocx()`.
 
 ## Security notes
 
